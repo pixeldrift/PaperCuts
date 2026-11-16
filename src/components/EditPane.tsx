@@ -1,6 +1,7 @@
+import { useRef } from 'react'
 import { Avatar } from '../icons'
-import { clipWords, fmtShort, layout, locate, useStore } from '../store'
-import type { Clip } from '../types'
+import { fmtShort, layout, locate, useStore } from '../store'
+import type { Clip, Word } from '../types'
 import { Toolbar } from './Toolbar'
 import { Viewer } from './Viewer'
 
@@ -26,6 +27,32 @@ function RefinePopover() {
   )
 }
 
+/** How many faded words of source context to show around the selected clip. */
+const CONTEXT = 14
+
+/** The word span nearest the pointer (lines first, then horizontal distance). */
+function nearestWord(block: HTMLElement, x: number, y: number) {
+  let best: { i: number; rect: DOMRect } | null = null
+  let bestScore = Infinity
+  block.querySelectorAll<HTMLElement>('[data-wi]').forEach((el) => {
+    const r = el.getBoundingClientRect()
+    const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0
+    const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0
+    const score = dy * 1000 + dx
+    if (score < bestScore) {
+      bestScore = score
+      best = { i: Number(el.dataset.wi), rect: r }
+    }
+  })
+  return best as { i: number; rect: DOMRect } | null
+}
+
+interface Shown {
+  w: Word
+  i: number
+  ctx: boolean
+}
+
 function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; active: boolean }) {
   const source = useStore((s) => s.sources.find((x) => x.id === clip.sourceId)!)
   const curT = useStore((s) => {
@@ -34,8 +61,20 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
     return loc?.clip.id === clip.id ? loc.sourceT : -1
   })
   const refine = useStore((s) => s.refine)
-  const { selectClip, seekEdit, removeClip, openRefine } = useStore.getState()
-  const words = clipWords(source, clip)
+  const { selectClip, seekEdit, removeClip, openRefine, trimDrag, endTrimDrag } = useStore.getState()
+  const blockRef = useRef<HTMLElement>(null)
+  const drag = useRef<{ which: 'in' | 'out'; x: number; y: number; moved: boolean } | null>(null)
+
+  // word indices covered by the clip, plus faded context when selected
+  const all = source.words
+  let a = all.findIndex((w) => w.s >= clip.inMs - 1)
+  if (a < 0) a = all.length
+  let b = a - 1
+  while (b + 1 < all.length && all[b + 1].e <= clip.outMs + 1) b++
+  const shown: Shown[] = []
+  const from = selected ? Math.max(0, a - CONTEXT) : a
+  const to = selected ? Math.min(all.length - 1, b + CONTEXT) : b
+  for (let i = from; i <= to; i++) shown.push({ w: all[i], i, ctx: i < a || i > b })
 
   const onWord = (e: React.MouseEvent, ms: number) => {
     e.stopPropagation()
@@ -45,15 +84,60 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
   }
 
   // group words into paragraphs by their source paragraph
-  const paras: (typeof words)[] = []
-  for (const w of words) {
+  const paras: Shown[][] = []
+  for (const sw of shown) {
     const last = paras[paras.length - 1]
-    if (last && last[0].p === w.p) last.push(w)
-    else paras.push([w])
+    if (last && last[0].w.p === sw.w.p) last.push(sw)
+    else paras.push([sw])
   }
 
+  // dragging a handle across the (faded) words moves the in / out point
+  const down = (which: 'in' | 'out') => (e: React.PointerEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    e.preventDefault()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    drag.current = { which, x: e.clientX, y: e.clientY, moved: false }
+    document.body.classList.add('trimming')
+  }
+  const move = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current
+    if (!d || !blockRef.current) return
+    if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4) return
+    d.moved = true
+    const hit = nearestWord(blockRef.current, e.clientX, e.clientY)
+    if (!hit) return
+    const past = e.clientX >= hit.rect.left + hit.rect.width / 2 // pointer in the second half of the word
+    if (d.which === 'out') {
+      const w = past ? all[hit.i] : all[hit.i - 1]
+      if (w) trimDrag(clip.id, 'out', w.e)
+    } else {
+      const w = past ? all[hit.i + 1] : all[hit.i]
+      if (w) trimDrag(clip.id, 'in', w.s)
+    }
+  }
+  const up = (cancel: boolean) => (e: React.PointerEvent<HTMLButtonElement>) => {
+    const d = drag.current
+    drag.current = null
+    document.body.classList.remove('trimming')
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
+    endTrimDrag()
+    if (d && !d.moved && !cancel) openRefine(d.which) // a plain click opens the frame-level refine popover
+  }
+  const handleProps = (which: 'in' | 'out') => ({
+    onPointerDown: down(which),
+    onPointerMove: move,
+    onPointerUp: up(false),
+    onPointerCancel: up(true),
+    onClick: (e: React.MouseEvent) => e.stopPropagation(),
+  })
+
   return (
-    <article className="clip" data-selected={selected || undefined} onClick={() => selectClip(clip.id)}>
+    <article
+      ref={blockRef}
+      className="clip"
+      data-selected={selected || undefined}
+      onClick={() => selectClip(clip.id)}
+    >
       <div className="clip-meta">
         <span className="clip-speaker">{source.title}</span>
         <Avatar size={36} />
@@ -65,10 +149,11 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
       <div className="clip-text">
         {paras.map((p, pi) => (
           <p key={pi}>
-            {p.map((w) => {
-              const isCur = curT >= w.s && curT < w.e + 35
+            {p.map(({ w, i, ctx }) => {
+              const isCur = !ctx && curT >= w.s && curT < w.e + 35
+              const cls = ctx ? 'ctx' : isCur ? 'cur' : undefined
               return (
-                <span key={w.s} className={isCur ? 'cur' : undefined} onClick={(e) => onWord(e, w.s)}>
+                <span key={i} data-wi={i} className={cls} onClick={ctx ? undefined : (e) => onWord(e, w.s)}>
                   {w.t}{' '}
                 </span>
               )
@@ -86,8 +171,18 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
           <button className="clip-x" aria-label="Remove clip" onClick={(e) => (e.stopPropagation(), removeClip())}>
             ✕
           </button>
-          <button className="handle in" aria-label="Refine in point" onClick={(e) => (e.stopPropagation(), openRefine('in'))} />
-          <button className="handle out" aria-label="Refine out point" onClick={(e) => (e.stopPropagation(), openRefine('out'))} />
+          <button
+            className="handle in"
+            aria-label="Trim in point — drag over the text, or click to refine by frame"
+            title="Drag to trim · click to refine"
+            {...handleProps('in')}
+          />
+          <button
+            className="handle out"
+            aria-label="Trim out point — drag over the text, or click to refine by frame"
+            title="Drag to trim · click to refine"
+            {...handleProps('out')}
+          />
           {refine && <RefinePopover />}
         </>
       )}

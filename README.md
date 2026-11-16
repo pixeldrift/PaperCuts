@@ -19,6 +19,9 @@ Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
 - Sources with media play through real `<video>`; sources without media fall back to simulated playback (`store.tick`). `components/Viewer.tsx` handles both, including sequencing clips across files.
 - Sample sources/transcripts are generated in `src/data/sample.ts`.
 
+## Trimming
+Select a clip to reveal faded words of source context around it. Drag the left/right handle over the text to move the in/out point (one undo step per drag). A plain click on a handle opens **Refine** for ±1 frame (Shift = ±10; also ←/→ while open).
+
 ## Shortcuts
 `,` insert · `.` overwrite · `Q`/`W` trim in/out · `R` refine · `K` cut · `G` glue · `X` remove clip · `N`/`C` note/comment · `Space` play · `⌘Z` undo · `⌘S` save · `+`/`-` text size
 
@@ -26,9 +29,11 @@ Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
 
 **Next**
 - ~~Real media playback with `<video>`; import media + SRT/VTT/JSON transcripts (drag-and-drop)~~ — done (see below)
-- Persist imported sources (IndexedDB / OPFS) so they survive a reload — currently they live only for the session
+- ~~Persist imported sources, media and the edit (IndexedDB)~~ — done; autosaves, survives reloads
 - Formal media-provider interface (`play`, `seek`, `currentTime`, `duration`, `onTick`) so YouTube etc. can plug in; gapless clip sequencing via two preloaded players
-- Drag-to-trim clip handles; story notes and comments as inline editors
+- ~~Drag-to-trim clip handles~~ — done; select a clip, drag a handle over the faded context words (click a handle for frame-level Refine)
+- Story notes and comments as inline editors (currently a browser prompt)
+- Multiple named edits; storage-usage / manage-media screen
 - Transcript editing
 
 **Later**

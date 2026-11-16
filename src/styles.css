@@ -994,3 +994,21 @@ tr:focus-visible {
   font-size: 12.5px;
   line-height: 1.5;
 }
+
+/* ───────── drag-to-trim ───────── */
+.clip-text .ctx {
+  opacity: 0.32;
+  transition: opacity 0.12s;
+}
+.clip[data-selected] .clip-text .ctx:hover {
+  opacity: 0.55;
+}
+.handle {
+  cursor: grab;
+}
+body.trimming,
+body.trimming * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}

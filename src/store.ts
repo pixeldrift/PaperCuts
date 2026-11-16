@@ -120,6 +120,8 @@ interface State {
   cut: () => void
   glue: () => void
   trim: (which: 'in' | 'out') => void
+  trimDrag: (clipId: string, which: 'in' | 'out', ms: number) => void
+  endTrimDrag: () => void
   openRefine: (which: 'in' | 'out' | null) => void
   nudge: (frames: number) => void
   addNote: (kind: 'story' | 'comment') => void
@@ -130,6 +132,9 @@ interface State {
   removeSource: () => void
   addSources: (sources: Source[]) => void
 }
+
+/** Clips as they were when the current trim-drag began (for one undo step). */
+let dragBase: Clip[] | null = null
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -319,6 +324,27 @@ export const useStore = create<State>((set, get) => {
       commit(next)
       // keep the playhead on the same frame after the layout shifts
       if (which === 'in') set({ editT: layout(next).starts[loc.index] })
+    },
+    trimDrag: (clipId, which, ms) => {
+      const s = get()
+      const clip = s.clips.find((c) => c.id === clipId)
+      if (!clip) return
+      const src = s.sources.find((x) => x.id === clip.sourceId)!
+      dragBase ??= s.clips
+      const next = s.clips.map((c) =>
+        c.id !== clipId
+          ? c
+          : which === 'in'
+            ? { ...c, inMs: Math.max(0, Math.min(ms, c.outMs - FRAME)) }
+            : { ...c, outMs: Math.min(src.duration, Math.max(ms, c.inMs + FRAME)) },
+      )
+      set({ clips: next })
+    },
+    endTrimDrag: () => {
+      const base = dragBase
+      dragBase = null
+      if (!base || base === get().clips) return
+      set((s) => ({ past: [...s.past.slice(-99), base], future: [] }))
     },
     openRefine: (which) => {
       const s = get()
