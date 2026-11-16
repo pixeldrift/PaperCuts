@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { initPersistence } from './lib/persist'
 import { IMPORT_EVENT, openImportPicker, runImport } from './lib/runImport'
 import { EditPane } from './components/EditPane'
 import { SourcePane } from './components/SourcePane'
@@ -81,6 +82,10 @@ const NAV: { pane: Pane; label: string; icon: IconName }[] = [
 export function App() {
   usePlaybackClock()
   useShortcuts()
+  useEffect(() => {
+    void initPersistence()
+  }, [])
+  const hydrated = useStore((s) => s.hydrated)
   const tab = useStore((s) => s.tab)
   const pane = useStore((s) => s.mobilePane)
   const sourcesOpen = useStore((s) => s.sourcesOpen)
@@ -95,6 +100,8 @@ export function App() {
     window.addEventListener(IMPORT_EVENT, open)
     return () => window.removeEventListener(IMPORT_EVENT, open)
   }, [])
+
+  if (!hydrated) return <div className="app" aria-busy="true" />
 
   const act = (p: Pane) => ({ 'data-active': pane === p })
 

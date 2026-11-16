@@ -16,6 +16,8 @@ function mediaDuration(url: string): Promise<number> {
 
 export interface ImportResult {
   sources: Source[]
+  /** Original media file per source id, for persistence. */
+  files: Record<string, File | undefined>
   warnings: string[]
 }
 
@@ -42,6 +44,7 @@ export async function importFiles(files: File[]): Promise<ImportResult> {
   for (const m of unmatched) pairs.push({ media: m })
 
   const sources: Source[] = []
+  const files_: Record<string, File | undefined> = {}
   for (const { transcript, media: m } of pairs) {
     const file = (transcript ?? m)!
     let parsed: Pick<Source, 'words' | 'sentences'> = { words: [], sentences: [] }
@@ -64,8 +67,10 @@ export async function importFiles(files: File[]): Promise<ImportResult> {
       day: 'numeric',
       year: 'numeric',
     })
+    const id = `imp-${Date.now().toString(36)}-${sources.length}`
+    files_[id] = m
     sources.push({
-      id: `imp-${Date.now().toString(36)}-${sources.length}`,
+      id,
       title: base(file.name),
       date,
       duration: Math.max(mediaMs, textMs),
@@ -73,5 +78,5 @@ export async function importFiles(files: File[]): Promise<ImportResult> {
       ...parsed,
     })
   }
-  return { sources, warnings }
+  return { sources, files: files_, warnings }
 }

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Clip, Pane, Source, Tab, Word } from './types'
-import { SAMPLE_SOURCES, sampleClips } from './data/sample'
+import { SAMPLE_SOURCES } from './data/sample'
+import { deleteSource, kvGet, kvSet } from './lib/db'
 
 export const FPS = 30
 export const FRAME = 1000 / FPS
@@ -71,6 +72,7 @@ export function clipWords(src: Source, clip: Clip) {
 // ───────────────────────── store ─────────────────────────
 
 interface State {
+  hydrated: boolean
   tab: Tab
   mobilePane: Pane
   sourcesOpen: boolean
@@ -166,6 +168,7 @@ export const useStore = create<State>((set, get) => {
   const clearNativeSelection = () => window.getSelection()?.removeAllRanges()
 
   return {
+    hydrated: false,
     tab: 'edits',
     mobilePane: 'edit',
     sourcesOpen: false,
@@ -176,7 +179,7 @@ export const useStore = create<State>((set, get) => {
     sourceSel: null,
 
     editName: 'Episode 01',
-    clips: loadSaved() ?? sampleClips(),
+    clips: [],
     selectedClipId: null,
     past: [],
     future: [],
@@ -378,12 +381,10 @@ export const useStore = create<State>((set, get) => {
       set({ editName: 'Untitled Edit', editT: 0, playing: false })
     },
     save: () => {
-      try {
-        localStorage.setItem('papercuts.edit', JSON.stringify({ name: get().editName, clips: get().clips }))
-        get().toast('Edit saved')
-      } catch {
-        get().toast('Couldn’t save (storage unavailable)')
-      }
+      const { editName, clips } = get()
+      kvSet('edit', { name: editName, clips })
+        .then(() => get().toast('Edit saved'))
+        .catch(() => get().toast('Couldn’t save (storage unavailable)'))
     },
     addSources: (added) => {
       if (!added.length) return
@@ -404,20 +405,15 @@ export const useStore = create<State>((set, get) => {
       const sources = s.sources.filter((x) => x.id !== src.id)
       commit(s.clips.filter((c) => c.sourceId !== src.id), null)
       set({ sources, selectedSourceId: sources[0].id, sourceSel: null, sourceT: 0 })
+      if (src.mediaUrl) URL.revokeObjectURL(src.mediaUrl)
+      const isSample = SAMPLE_SOURCES.some((x) => x.id === src.id)
+      const forget = isSample
+        ? kvGet<string[]>('removedSamples').then((ids) => kvSet('removedSamples', [...(ids ?? []), src.id]))
+        : deleteSource(src.id)
+      forget.catch(() => get().toast('Couldn’t update storage'))
     },
   }
 })
 
-function loadSaved(): Clip[] | null {
-  try {
-    const raw = localStorage.getItem('papercuts.edit')
-    if (!raw) return null
-    const data = JSON.parse(raw) as { clips: Clip[] }
-    const clips = data.clips.filter((c) => SAMPLE_SOURCES.some((s) => s.id === c.sourceId))
-    return clips.length ? clips : null
-  } catch {
-    return null
-  }
-}
 
 export const selectSource = (s: State) => s.sources.find((x) => x.id === s.selectedSourceId)!
