@@ -112,8 +112,8 @@ export function App() {
           <Icon name="sources" size={20} />
         </button>
         <a className="brand" href="/" aria-label="PaperCuts">
-          <img className="brand-icon" src="/icons/icon.svg" alt="" width="30" height="30" />
-          <img className="brand-word" src="/brand/wordmark-dark.svg" alt="PaperCuts" height="22" />
+          <img className="brand-icon" src="/icons/icon-192.png" alt="" width="32" height="32" />
+          <img className="brand-word" src="/brand/wordmark.png" alt="PaperCuts" height="24" />
         </a>
         <nav className="tabs" role="tablist">
           <button role="tab" aria-selected={tab === 'transcripts'} onClick={() => st.setTab('transcripts')}>

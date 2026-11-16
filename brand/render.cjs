@@ -1,19 +1,15 @@
-// Rasterise the brand SVGs to PNG (needs `playwright`; run from the repo root: node brand/render.cjs)
+// Rasterise the vector brand SVGs (brand/vector) to PNG previews (needs `playwright`; run from the repo root: node brand/render.cjs)
 const { chromium } = require('playwright')
 const fs = require('fs')
 const path = require('path')
 
 const jobs = [
   // [svg, png, width, background (null = transparent)]
-  ['public/icons/icon.svg', 'public/icons/icon-192.png', 192, null],
-  ['public/icons/icon.svg', 'public/icons/icon-512.png', 512, null],
-  ['public/icons/icon-maskable.svg', 'public/icons/icon-maskable-512.png', 512, null],
-  ['public/icons/apple-touch-icon.svg', 'public/icons/apple-touch-icon.png', 180, null],
-  ['public/icons/icon.svg', 'public/icons/favicon-32.png', 32, null],
-  ['brand/logo-stacked-dark.svg', 'brand/preview/logo-stacked-dark.png', 900, '#17181C'],
-  ['brand/logo-horizontal-dark.svg', 'brand/preview/logo-horizontal-dark.png', 1100, '#17181C'],
-  ['brand/logo-stacked-light.svg', 'brand/preview/logo-stacked-light.png', 900, '#FFFFFF'],
-  ['brand/logo-horizontal-light.svg', 'brand/preview/logo-horizontal-light.png', 1100, '#FFFFFF'],
+  ['brand/vector/icon.svg', 'brand/vector/preview/icon-512.png', 512, null],
+  ['brand/vector/logo-stacked-dark.svg', 'brand/vector/preview/logo-stacked-dark.png', 900, '#17181C'],
+  ['brand/vector/logo-horizontal-dark.svg', 'brand/vector/preview/logo-horizontal-dark.png', 1100, '#17181C'],
+  ['brand/vector/logo-stacked-light.svg', 'brand/vector/preview/logo-stacked-light.png', 900, '#FFFFFF'],
+  ['brand/vector/logo-horizontal-light.svg', 'brand/vector/preview/logo-horizontal-light.png', 1100, '#FFFFFF'],
 ]
 
 ;(async () => {

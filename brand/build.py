@@ -6,7 +6,8 @@ Generate PaperCuts brand SVGs (flat colours, text converted to outlines).
     python3 brand/build.py         # default pairing (Outfit Light + Space Grotesk)
     python3 brand/build.py sora    # try another pairing (see PAIRS)
 
-Then `node brand/render.cjs` (needs playwright) rasterises the PNGs.
+Outputs go to brand/vector/ (not shipped). The app currently ships icons made from the
+concept raster by brand/make_icons.py. `node brand/render.cjs` rasterises vector previews.
 """
 import os, re, sys, urllib.request
 from fontTools.pens.boundsPen import BoundsPen
@@ -131,7 +132,7 @@ def main(name: str = "outfit"):
         w, h = x1 - x0 + 2 * pad, bottom - top + 2 * pad
         vb = f"{x0 - pad:.1f} {top - pad:.1f} {w:.1f} {h:.1f}"
         write(
-            f"public/brand/wordmark-{theme}.svg",
+            f"brand/vector/wordmark-{theme}.svg",
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}" role="img" aria-label="PaperCuts">{g}</svg>\n',
         )
 
@@ -144,7 +145,7 @@ def main(name: str = "outfit"):
         mid = (top + bottom) / 2
         ty = pad + icon / 2 - mid * scale
         write(
-            f"brand/logo-horizontal-{theme}.svg",
+            f"brand/vector/logo-horizontal-{theme}.svg",
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.1f} {H:.1f}">'
             f'<g transform="translate({pad} {pad}) scale({icon / 512:.5f})">{icon_group()}</g>'
             f'<g transform="translate({pad + icon + gap - x0 * scale:.2f} {ty:.2f}) scale({scale:.5f})">{g}</g></svg>\n',
@@ -158,17 +159,17 @@ def main(name: str = "outfit"):
         wh = (bottom - top) * ws
         H = icon + gap + wh + 2 * pad * 3
         write(
-            f"brand/logo-stacked-{theme}.svg",
+            f"brand/vector/logo-stacked-{theme}.svg",
             f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W:.1f} {H:.1f}">'
             f'<g transform="translate({(W - icon) / 2:.1f} {pad * 3}) scale({icon / 512:.5f})">{icon_group()}</g>'
             f'<g transform="translate({pad * 3 - x0 * ws:.2f} {pad * 3 + icon + gap - top * ws:.2f}) scale({ws:.5f})">{g}</g></svg>\n',
         )
 
     # app icons
-    write("public/icons/icon.svg", icon_svg())
-    write("public/icons/icon-maskable.svg", icon_svg(maskable=True))
-    write("public/icons/apple-touch-icon.svg", icon_svg(full_bleed=True, art_scale=0.86))
-    write("public/favicon.svg", icon_svg())
+    write("brand/vector/icon.svg", icon_svg())
+    write("brand/vector/icon-maskable.svg", icon_svg(maskable=True))
+    write("brand/vector/apple-touch-icon.svg", icon_svg(full_bleed=True, art_scale=0.86))
+    write("brand/vector/favicon.svg", icon_svg())
     print("pairing:", name)
 
 

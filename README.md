@@ -9,15 +9,21 @@ npm run build
 ```
 
 ## Branding
-App icon, favicon, PWA manifest and logo lockups live in `public/` and `brand/`. Everything is flat colour with text converted to outlines.
+The shipped app icons, favicon, PWA manifest icons and top-bar wordmark are generated from the concept image (`brand/source/concept.jpg`):
+
+```bash
+pip install pillow numpy
+python3 brand/make_icons.py   # → public/icons/*, public/brand/wordmark.png
+```
+It's a raster, so large sizes are a little soft — replace the source image (or the whole pipeline) when final art exists.
+
+A **vector retrace** of the mark (flat colours, outlined text) is kept in `brand/icon.py` + `brand/build.py` and writes to `brand/vector/` — not shipped yet, for when we want crisp resolution-independent art:
 
 ```bash
 pip install fonttools brotli uharfbuzz
-python3 brand/build.py          # regenerate SVGs (default: Outfit Light + Space Grotesk Bold)
-python3 brand/build.py sora     # or: dmsans, manrope, lexend, fraunces — try another pairing
-node brand/render.cjs               # rasterise PNGs (needs playwright)
+python3 brand/build.py          # default: Outfit Light + Space Grotesk Bold; or: sora, dmsans, manrope, lexend, fraunces
+node brand/render.cjs           # PNG previews (needs playwright)
 ```
-Icon artwork (traced from the original concept sketch) is in `brand/icon.py`; colours match the app (`#2B2C37` tile, `#7A6CF6` accent). Previews: `brand/preview/`.
 
 ## Importing sources
 Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
