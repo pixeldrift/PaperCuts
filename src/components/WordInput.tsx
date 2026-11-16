@@ -4,6 +4,7 @@ import { useStore } from '../store'
 /**
  * Inline editor for one transcript word.
  *   Enter = save · Tab / Shift+Tab = save and move on · Esc = cancel
+ *   Shift+Enter = save and start a new paragraph after this word
  *   typing a space splits the word in two · clearing it deletes the word
  */
 export function WordInput({ sourceId, index, initial }: { sourceId: string; index: number; initial: string }) {
@@ -41,8 +42,14 @@ export function WordInput({ sourceId, index, initial }: { sourceId: string; inde
       }}
       onKeyDown={(e) => {
         e.stopPropagation()
-        const { commitWordEdit, cancelWordEdit } = useStore.getState()
-        if (e.key === 'Enter') (e.preventDefault(), commitWordEdit(text, 0))
+        const { commitWordEdit, cancelWordEdit, toggleParagraphBreak } = useStore.getState()
+        if (e.key === 'Enter' && e.shiftKey) {
+          // save, then break the paragraph after this word (or join if one is already there)
+          e.preventDefault()
+          const n = text.trim() ? text.trim().split(/\s+/).length : 0
+          commitWordEdit(text, 0)
+          toggleParagraphBreak(sourceId, index + n - 1)
+        } else if (e.key === 'Enter') (e.preventDefault(), commitWordEdit(text, 0))
         else if (e.key === 'Tab') (e.preventDefault(), commitWordEdit(text, e.shiftKey ? -1 : 1))
         else if (e.key === 'Escape') (e.preventDefault(), cancelWordEdit())
       }}

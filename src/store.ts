@@ -3,6 +3,7 @@ import type { Clip, Note, Pane, Source, Tab, Word } from './types'
 import { SAMPLE_SOURCES } from './data/sample'
 import { deleteSource, kvGet, kvSet } from './lib/db'
 import { sentenceRanges } from './lib/transcript'
+import { applyReplacement, findMatches, replaceWords, retext, tokenize, toggleBreakAfter } from './lib/textdiff'
 
 export const FPS = 30
 export const FRAME = 1000 / FPS
@@ -70,6 +71,19 @@ export function clipWords(src: Source, clip: Clip) {
   return src.words.filter((w) => w.s >= clip.inMs - 1 && w.e <= clip.outMs + 1)
 }
 
+export interface FindState {
+  query: string
+  replace: string
+  matchCase: boolean
+  wholeWord: boolean
+  allSources: boolean
+  /** Index of the highlighted match in the open source. */
+  cur: number
+}
+
+const sameWords = (a: Word[], b: Word[]) =>
+  a.length === b.length && a.every((w, i) => w.t === b[i].t && w.s === b[i].s && w.e === b[i].e && w.p === b[i].p)
+
 // ───────────────────────── history ─────────────────────────
 
 /** Everything undo can restore: the clip list plus each source's (editable) transcript. */
@@ -130,6 +144,8 @@ interface State {
   /** Transcript editing mode (T) and the word whose inline editor is open. */
   editMode: boolean
   editingWord: { sourceId: string; index: number } | null
+  /** Find & replace bar (null = closed). */
+  find: FindState | null
   timelineZoom: number
   toastMsg: string | null
 
@@ -165,6 +181,14 @@ interface State {
   cancelNote: () => void
   deleteNote: (clipId: string, noteId: string) => void
   toggleTranscriptEdit: () => void
+  openFind: () => void
+  closeFind: () => void
+  setFind: (patch: Partial<FindState>) => void
+  /** Replace the current match (all=false) or every match (all=true). */
+  replaceMatches: (all: boolean) => void
+  /** Rewrite a source's transcript from edited plain text (paragraphs = lines). */
+  applyFullText: (sourceId: string, text: string) => void
+  toggleParagraphBreak: (sourceId: string, index: number) => void
   startWordEdit: (sourceId: string, index: number) => void
   cancelWordEdit: () => void
   /** Apply the typed text to the open word. move: 1/-1 = continue to the next/previous word. */
@@ -190,6 +214,19 @@ export const useStore = create<State>((set, get) => {
       past: [...s.past.slice(-99), snapshot(s)],
       future: [],
       selectedClipId: selectedClipId === undefined ? s.selectedClipId : selectedClipId,
+    }))
+
+  /** Swap in new transcripts for one or more sources as a single undo step. */
+  const applySourceTexts = (updates: { sourceId: string; words: Word[] }[]) =>
+    set((st) => ({
+      past: [...st.past.slice(-99), snapshot(st)],
+      future: [],
+      sources: st.sources.map((x) => {
+        const u = updates.find((y) => y.sourceId === x.id)
+        return u ? { ...x, words: u.words, sentences: sentenceRanges(u.words) } : x
+      }),
+      sourceSel: null, // word indices may have shifted
+      editingWord: null,
     }))
 
   const currentSource = () => {
@@ -242,6 +279,7 @@ export const useStore = create<State>((set, get) => {
     editingNote: null,
     editMode: false,
     editingWord: null,
+    find: null,
     timelineZoom: 14,
     toastMsg: null,
 
@@ -462,18 +500,14 @@ export const useStore = create<State>((set, get) => {
         words = [...src.words.slice(0, edit.index), ...src.words.slice(edit.index + 1)]
         next = edit.index
       } else if (body !== word.t) {
-        // a space splits the word; its time is shared out by length
-        const tokens = body.split(/\s+/)
-        const total = tokens.reduce((n, t) => n + t.length, 0)
-        let at = word.s
-        const parts = tokens.map((t, i) => {
-          const end = i === tokens.length - 1 ? word.e : Math.round(at + ((word.e - word.s) * t.length) / total)
-          const w = { ...word, t, s: at, e: end }
-          at = end
-          return w
-        })
-        words = [...src.words.slice(0, edit.index), ...parts, ...src.words.slice(edit.index + 1)]
-        next = edit.index + parts.length
+        const tokens = body.split(/\s+/).map((t) => ({ t, p: word.p }))
+        if (tokens.length === 1) {
+          words = src.words.map((w, i) => (i === edit.index ? { ...w, t: body } : w)) // swap, same timing
+        } else {
+          // several words: they share the time between the words on either side
+          words = replaceWords(src.words, edit.index, edit.index + 1, tokens, src.duration)
+        }
+        next = edit.index + tokens.length
       }
 
       const target = move === 1 ? next : move === -1 ? edit.index - 1 : -1
@@ -487,6 +521,48 @@ export const useStore = create<State>((set, get) => {
         sourceSel: null, // word indices shifted
         editingWord: open,
       }))
+    },
+    openFind: () =>
+      set((s) => ({
+        find: s.find ?? { query: '', replace: '', matchCase: false, wholeWord: false, allSources: false, cur: 0 },
+        mobilePane: 'source',
+      })),
+    closeFind: () => set({ find: null }),
+    setFind: (patch) => set((s) => (s.find ? { find: { ...s.find, ...patch } } : s)),
+    applyFullText: (sourceId, text) => {
+      const s = get()
+      const src = s.sources.find((x) => x.id === sourceId)
+      if (!src) return
+      if (!tokenize(text).length) return get().toast('The transcript can’t be empty')
+      const words = retext(src.words, text, src.duration)
+      if (sameWords(words, src.words)) return get().toast('No changes')
+      applySourceTexts([{ sourceId, words }])
+      get().toast('Transcript updated — new words share the time around them')
+    },
+    toggleParagraphBreak: (sourceId, index) => {
+      const src = get().sources.find((x) => x.id === sourceId)
+      if (!src) return
+      const words = toggleBreakAfter(src.words, index)
+      if (words !== src.words) applySourceTexts([{ sourceId, words }])
+    },
+    replaceMatches: (all) => {
+      const s = get()
+      const f = s.find
+      if (!f || !f.query.trim()) return
+      const opts = { query: f.query, matchCase: f.matchCase, wholeWord: f.wholeWord }
+      const targets = all && f.allSources ? s.sources : [currentSource()]
+      const updates: { sourceId: string; words: Word[] }[] = []
+      let total = 0
+      for (const src of targets) {
+        const matches = findMatches(src.words, opts)
+        if (!matches.length) continue
+        const only = all ? undefined : Math.min(f.cur, matches.length - 1)
+        total += all ? matches.length : 1
+        updates.push({ sourceId: src.id, words: retext(src.words, applyReplacement(src.words, matches, f.replace, only), src.duration) })
+      }
+      if (!updates.length) return get().toast('No matches')
+      applySourceTexts(updates)
+      get().toast(`Replaced ${total} ${total === 1 ? 'match' : 'matches'}${updates.length > 1 ? ` in ${updates.length} sources` : ''}`)
     },
     undo: () =>
       set((s) => {

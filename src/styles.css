@@ -1244,3 +1244,187 @@ body.trimming * {
     gap: 2px;
   }
 }
+
+/* ───────── find & replace, full-text editor ───────── */
+.findbar {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px;
+  background: var(--panel-3);
+  border-bottom: 1px solid var(--line);
+}
+.find-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.find-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.find-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.find-count {
+  min-width: 62px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+}
+.fbtn {
+  height: 30px;
+  min-width: 30px;
+  padding: 0 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+}
+.fbtn.wide {
+  padding: 0 12px;
+}
+.fbtn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.fbtn:not(:disabled):hover {
+  border-color: var(--accent-line);
+}
+.fbtn.primary:not(:disabled):hover {
+  background: var(--accent-hi);
+}
+.fbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.find-opts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.find-opts label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.find-opts input {
+  accent-color: var(--accent);
+}
+.find-icon {
+  display: none;
+}
+.transcript .find {
+  background: rgba(226, 180, 95, 0.28);
+  box-shadow: 0 0 0 1px rgba(226, 180, 95, 0.5);
+  border-radius: 3px;
+}
+.transcript .find-cur {
+  background: #e2b45f;
+  color: #0f1014;
+  border-radius: 3px;
+}
+.edit-hint .fbtn {
+  margin-left: auto;
+  flex: none;
+  height: 26px;
+  font-size: 12px;
+}
+.fulltext {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+}
+.fulltext textarea {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  padding: 14px 16px;
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: calc(13px * var(--tscale, 1));
+  line-height: 1.65;
+}
+.fulltext-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 12px;
+  background: var(--panel-3);
+  border-top: 1px solid var(--line);
+}
+.fulltext-stats {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.fulltext-note {
+  flex: 1;
+  min-width: 140px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+@media (max-width: 720px) {
+  .find-input,
+  .fulltext textarea {
+    font-size: 16px; /* stops iOS zooming into the field */
+  }
+  .edit-hint {
+    flex-wrap: wrap;
+  }
+}
+
+/* while editing / searching, give the transcript the room instead of the video */
+.source-pane[data-compact] .screen {
+  max-height: 15vh;
+}
+.source-pane[data-compact] .screen-hint {
+  display: none;
+}
+.edit-hint {
+  padding: 5px 12px;
+}
+.findbar {
+  gap: 5px;
+  padding: 6px 10px;
+}
+@media (max-width: 720px) {
+  .source-pane[data-compact] .screen {
+    max-height: 12vh;
+  }
+}
+@media (max-width: 720px) {
+  .find-row {
+    flex-wrap: wrap;
+  }
+  .find-row .find-input {
+    flex: 1 1 100%;
+  }
+  .find-row .find-count {
+    flex: 1;
+    text-align: left;
+  }
+  .find-row .fbtn.wide {
+    flex: 1;
+  }
+}

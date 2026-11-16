@@ -154,6 +154,14 @@ const paths = {
     </>
   ),
 
+  // — Search
+  find: (
+    <>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="M20.5 20.5L15.5 15.5" />
+    </>
+  ),
+
   // — History
   undo: <path d="M9 5L4 10l5 5M4 10h10.5a5.5 5.5 0 0 1 0 11H10" />,
   redo: <path d="M15 5l5 5-5 5M20 10H9.5a5.5 5.5 0 0 0 0 11H14" />,

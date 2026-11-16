@@ -40,13 +40,26 @@ Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
 Select a clip to reveal faded words of source context around it. Drag the left/right handle over the text to move the in/out point (one undo step per drag). A plain click on a handle opens **Refine** for ±1 frame (Shift = ±10; also ←/→ while open).
 
 ## Transcript editing
-Press **T** (or *Edit Text*) in either pane, then click a word: **Enter** saves, **Tab / Shift+Tab** saves and moves to the next/previous word, **Esc** cancels (Esc again leaves the mode). Typing a space splits a word in two (its time is shared by length); clearing it deletes the word. Timing is never changed, so clips and trims stay put. Edits autosave and are undoable.
+Press **T** (or *Edit Text*) in either pane.
+
+- **Swap a word:** click it, type, **Enter**. Tab / Shift+Tab saves and moves to the next / previous word; **Esc** cancels (Esc again leaves the mode).
+- **Edit the whole transcript:** *Edit full text* opens it as plain text — every line is a paragraph, so **Enter adds a paragraph break** (and joining lines removes one). **Cmd/Ctrl+Enter** applies.
+- **Paragraph breaks word-by-word:** **Shift+Enter** in a word editor breaks the paragraph after that word (or joins, if there's already a break).
+- **Find & replace:** `Cmd/Ctrl+F` (or *Find*). Phrases work, with *Match case*, *Whole word* and *All sources*. Matches are highlighted; *Replace* does the current match, *Replace all* does every match (across all sources if ticked) as a single undo step.
+
+### How new words are timed
+Unchanged words keep their exact timing, so clips and trims stay put. For anything new:
+- a word swapped 1-for-1 keeps the old word's timing;
+- otherwise the new words **share the time between the unchanged words on either side of the edit, divided evenly**;
+- if that gap is too small to fit them (min ~120 ms per word), the neighbouring words each give up a little time (never dropping below ~80 ms).
+
+Edits autosave and are undoable. The logic lives in `src/lib/textdiff.ts` (word-level diff + timing, find/replace) and is pure, so it's easy to test.
 
 ## Undo / redo
 `⌘Z` / `⌘⇧Z`, or the Undo / Redo buttons in the top bar (also on phones). History covers clip edits, trims, notes **and** transcript text.
 
 ## Shortcuts
-`,` insert · `.` overwrite · `Q`/`W` trim in/out · `R` refine · `K` cut · `G` glue · `X` remove clip · `N`/`C` note/comment · `Space` play · `T` edit transcript · `⌘Z` undo · `⌘⇧Z` redo · `⌘S` save · `+`/`-` text size
+`,` insert · `.` overwrite · `Q`/`W` trim in/out · `R` refine · `K` cut · `G` glue · `X` remove clip · `N`/`C` note/comment · `Space` play · `T` edit transcript · `⌘F` find & replace · `⌘Z` undo · `⌘⇧Z` redo · `⌘S` save · `+`/`-` text size
 
 ## Roadmap
 

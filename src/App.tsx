@@ -39,6 +39,7 @@ function useShortcuts() {
         if (k === 's') return e.preventDefault(), st.save()
         if (k === 'i') return e.preventDefault(), openImportPicker()
         if (k === 'n') return e.preventDefault(), st.newEdit()
+        if (k === 'f' || k === 'h') return e.preventDefault(), st.openFind()
         return
       }
       if (e.altKey) return
@@ -59,6 +60,7 @@ function useShortcuts() {
         '+': () => st.zoomText(1),
         '-': () => st.zoomText(-1),
         escape: () => {
+          if (st.find) return st.closeFind()
           if (st.editingWord) return st.cancelWordEdit()
           if (st.editMode) return st.toggleTranscriptEdit()
           st.openRefine(null)
