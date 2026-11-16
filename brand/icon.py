@@ -7,39 +7,45 @@ ACCENT = "#7A6CF6"
 BG = "#17181C"
 
 
-def ring(cx: float, cy: float, ro: float, ri: float) -> str:
-    """Annulus as one even-odd path."""
-    def circle(r: float) -> str:
-        return f"M{cx - r} {cy}A{r} {r} 0 1 0 {cx + r} {cy}A{r} {r} 0 1 0 {cx - r} {cy}Z"
-    return f'<path fill-rule="evenodd" d="{circle(ro)}{circle(ri)}"/>'
-
-
 def art() -> str:
-    """The film-page + scissors mark, drawn on a 512 grid and centred."""
+    """
+    The film-page + scissors mark, traced from the concept sketch.
+
+    Drawn in the sketch's own coordinate space (~960x880) and scaled into the
+    512 grid. The upper scissor blade is *negative space* cut through the page
+    and the play button; the lower blade is white, outlined by a dark gap.
+    """
     return f"""
-  <defs>
-    <g id="scis">
-      <path d="M276 186L391.8 308.7L368.2 327.3Z"/>
-      <path d="M272 306L382.7 303.3L377.3 332.7Z"/>
-      <path d="M371.1 319.3L388.9 316.7L403.3 413L385.5 415.6Z"/>
-      <path d="M374.1 324.8L385.9 311.2L423.7 343.6L411.9 357.2Z"/>
-      {ring(436, 366, 30, 15)}
-      {ring(398, 438, 30, 15)}
-    </g>
-  </defs>
-  <g transform="translate(-44 -41)">
-    <path d="M138 124H290L374 208V388H138Z" fill="{PAGE}"/>
-    <path d="M290 124V208H374Z" fill="{FOLD}"/>
+  <g transform="translate(53 77) scale(.42)">
+    <!-- paper / film strip -->
+    <path fill="{PAGE}" d="M128 135L478 70Q503 65 520 84L664 238Q682 260 676 292L655 430L650 600Q648 660 610 705Q598 716 575 719L128 787Q65 792 65 725V200Q65 145 128 135Z"/>
+    <!-- torn edge -->
+    <path fill="none" stroke="{ACCENT}" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"
+          d="M458 70Q508 100 522 170Q530 232 562 255Q600 274 674 282"/>
+    <!-- sprocket holes -->
     <g fill="{TILE}">
-      <rect x="156" y="158" width="30" height="38" rx="8"/>
-      <rect x="156" y="216" width="30" height="38" rx="8"/>
-      <rect x="156" y="274" width="30" height="38" rx="8"/>
-      <rect x="156" y="332" width="30" height="38" rx="8"/>
+      <rect x="125" y="178" width="92" height="90" rx="20"/>
+      <rect x="125" y="328" width="92" height="90" rx="20"/>
+      <rect x="125" y="478" width="92" height="90" rx="20"/>
+      <rect x="125" y="628" width="92" height="90" rx="20"/>
     </g>
-    <path d="M214 204V326L292 265Z" fill="{ACCENT}" stroke="{ACCENT}" stroke-width="14" stroke-linejoin="round"/>
-    <use href="#scis" fill="{TILE}" stroke="{TILE}" stroke-width="20" stroke-linejoin="round"/>
-    <use href="#scis" fill="#FFFFFF"/>
-    <circle cx="380" cy="318" r="11" fill="{ACCENT}"/>
+    <!-- play -->
+    <path fill="{ACCENT}" stroke="{ACCENT}" stroke-width="16" stroke-linejoin="round" d="M343 338V578L534 458Z"/>
+    <!-- upper blade: negative space over the page and the play button -->
+    <path fill="{TILE}" stroke="{TILE}" stroke-width="16" stroke-linejoin="round"
+          d="M252 246L664 420L574 474L256 270Z"/>
+    <!-- lower blade: dark gap, then the white blade -->
+    <path fill="{TILE}" stroke="{TILE}" stroke-width="14" stroke-linejoin="round"
+          d="M342 600L540 468L668 520L650 556L440 574Z"/>
+    <path fill="#FFFFFF" d="M446 560L622 474L668 534L600 552Z"/>
+    <!-- handles: stroked ellipses give an even ring; shanks join them to the pivot -->
+    <g fill="none" stroke="#FFFFFF" stroke-linecap="round">
+      <path stroke-width="72" d="M612 492L742 412"/>
+      <path stroke-width="72" d="M612 506L730 590"/>
+      <ellipse cx="806" cy="366" rx="76" ry="62" stroke-width="46" transform="rotate(-28 806 366)"/>
+      <ellipse cx="800" cy="652" rx="78" ry="72" stroke-width="46" transform="rotate(12 800 652)"/>
+    </g>
+    <circle cx="628" cy="486" r="18" fill="{ACCENT}"/>
   </g>
 """
 

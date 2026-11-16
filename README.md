@@ -13,11 +13,11 @@ App icon, favicon, PWA manifest and logo lockups live in `public/` and `brand/`.
 
 ```bash
 pip install fonttools brotli uharfbuzz
-python3 brand/build.py              # regenerate SVGs (default pairing: Fraunces + Space Grotesk)
-python3 brand/build.py instrument   # or: dmserif — try another font pairing
+python3 brand/build.py          # regenerate SVGs (default: Outfit Light + Space Grotesk Bold)
+python3 brand/build.py sora     # or: dmsans, manrope, lexend, fraunces — try another pairing
 node brand/render.cjs               # rasterise PNGs (needs playwright)
 ```
-Icon artwork is in `brand/icon.py`; colours match the app (`#2B2C37` tile, `#7A6CF6` accent). Previews: `brand/preview/`.
+Icon artwork (traced from the original concept sketch) is in `brand/icon.py`; colours match the app (`#2B2C37` tile, `#7A6CF6` accent). Previews: `brand/preview/`.
 
 ## Importing sources
 Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.

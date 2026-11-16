@@ -3,8 +3,8 @@
 Generate PaperCuts brand SVGs (flat colours, text converted to outlines).
 
     pip install fonttools brotli uharfbuzz
-    python3 brand/build.py            # default pairing
-    python3 brand/build.py instrument # try another pairing (see PAIRS)
+    python3 brand/build.py         # default pairing (Outfit Light + Space Grotesk)
+    python3 brand/build.py sora    # try another pairing (see PAIRS)
 
 Then `node brand/render.cjs` (needs playwright) rasterises the PNGs.
 """
@@ -25,17 +25,31 @@ UA = "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_6_8; de-at) AppleWebKit/533.2
 
 # family, google css spec, variable-axis values to pin
 PAIRS = {
-    "fraunces": {  # default: editorial serif + sharp grotesk
-        "paper": ("Fraunces", "opsz,wght@144,600", {"opsz": 144, "wght": 600}),
+    # sans + sans (Space Grotesk Bold for "Cuts" throughout)
+    "outfit": {  # default
+        "paper": ("Outfit", "wght@300", {"wght": 300}),
         "cuts": ("Space Grotesk", "wght@700", {"wght": 700}),
     },
-    "instrument": {
-        "paper": ("Instrument Serif", "", {}),
-        "cuts": ("Bricolage Grotesque", "opsz,wght@96,800", {"opsz": 96, "wght": 800}),
+    "sora": {
+        "paper": ("Sora", "wght@300", {"wght": 300}),
+        "cuts": ("Space Grotesk", "wght@700", {"wght": 700}),
     },
-    "dmserif": {
-        "paper": ("DM Serif Display", "", {}),
-        "cuts": ("Outfit", "wght@700", {"wght": 700}),
+    "dmsans": {
+        "paper": ("DM Sans", "opsz,wght@40,400", {"opsz": 40, "wght": 400}),
+        "cuts": ("Space Grotesk", "wght@700", {"wght": 700}),
+    },
+    "manrope": {
+        "paper": ("Manrope", "wght@500", {"wght": 500}),
+        "cuts": ("Space Grotesk", "wght@700", {"wght": 700}),
+    },
+    "lexend": {
+        "paper": ("Lexend", "wght@300", {"wght": 300}),
+        "cuts": ("Space Grotesk", "wght@700", {"wght": 700}),
+    },
+    # earlier serif option
+    "fraunces": {
+        "paper": ("Fraunces", "opsz,wght@144,600", {"opsz": 144, "wght": 600}),
+        "cuts": ("Space Grotesk", "wght@700", {"wght": 700}),
     },
 }
 
@@ -109,7 +123,7 @@ def write(rel: str, text: str):
     print("wrote", rel)
 
 
-def main(name: str = "fraunces"):
+def main(name: str = "outfit"):
     pair = PAIRS[name]
     pad = 8
     for theme in ("dark", "light"):
@@ -159,4 +173,4 @@ def main(name: str = "fraunces"):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "fraunces")
+    main(sys.argv[1] if len(sys.argv) > 1 else "outfit")
