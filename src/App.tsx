@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { IMPORT_EVENT, openImportPicker, runImport } from './lib/runImport'
 import { EditPane } from './components/EditPane'
 import { SourcePane } from './components/SourcePane'
 import { SourcesPanel } from './components/SourcesPanel'
@@ -35,7 +36,7 @@ function useShortcuts() {
       if (mod) {
         if (k === 'z') return e.preventDefault(), e.shiftKey ? st.redo() : st.undo()
         if (k === 's') return e.preventDefault(), st.save()
-        if (k === 'i') return e.preventDefault(), st.toast('Import isn’t wired up yet')
+        if (k === 'i') return e.preventDefault(), openImportPicker()
         if (k === 'n') return e.preventDefault(), st.newEdit()
         return
       }
@@ -88,6 +89,12 @@ export function App() {
   const hasSel = useStore((s) => !!s.sourceSel)
   const canUndo = useStore((s) => s.past.length > 0)
   const st = useStore.getState()
+  const fileInput = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    const open = () => fileInput.current?.click()
+    window.addEventListener(IMPORT_EVENT, open)
+    return () => window.removeEventListener(IMPORT_EVENT, open)
+  }, [])
 
   const act = (p: Pane) => ({ 'data-active': pane === p })
 
@@ -152,6 +159,18 @@ export function App() {
           </button>
         ))}
       </nav>
+
+      <input
+        ref={fileInput}
+        type="file"
+        multiple
+        hidden
+        accept="video/*,audio/*,.srt,.vtt,.json,.mkv"
+        onChange={(e) => {
+          void runImport([...(e.target.files ?? [])])
+          e.target.value = ''
+        }}
+      />
 
       <div className="toast" data-show={!!toastMsg} role="status">
         {toastMsg}

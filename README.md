@@ -8,8 +8,15 @@ npm run dev      # http://localhost:5173
 npm run build
 ```
 
+## Importing sources
+Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
+- Media: mp4, m4v, mov, webm, mkv, mp3, m4a, wav, ogg (what actually plays depends on the browser's codecs; webm/mp4-h264 are safest).
+- Transcripts: `.srt` / `.vtt` (cue-level — words are timed by spreading each cue over its words), or `.json` with word timings (`[{word,start,end}]`, `{words:[…]}` or Whisper-style `{segments:[…]}`; seconds or milliseconds).
+- Files are paired by name (`interview.mp4` + `interview.srt`), or automatically if you drop exactly one of each.
+- Sources with no media still work using simulated playback.
+
 - `/#icons` shows the icon set redrawn from the wireframe sheet.
-- Playback is **simulated** (no media yet). `store.tick` + `components/Viewer.tsx` are the seams to replace with real `<video>` elements.
+- Sources with media play through real `<video>`; sources without media fall back to simulated playback (`store.tick`). `components/Viewer.tsx` handles both, including sequencing clips across files.
 - Sample sources/transcripts are generated in `src/data/sample.ts`.
 
 ## Shortcuts
@@ -18,8 +25,9 @@ npm run build
 ## Roadmap
 
 **Next**
-- Real media: replace simulated playback with `<video>` behind a media-provider interface (`play`, `seek`, `currentTime`, `duration`, `onTick`); gapless clip sequencing via two preloaded players
-- Import sources (drag-and-drop) and transcripts (SRT / VTT / word-level JSON)
+- ~~Real media playback with `<video>`; import media + SRT/VTT/JSON transcripts (drag-and-drop)~~ — done (see below)
+- Persist imported sources (IndexedDB / OPFS) so they survive a reload — currently they live only for the session
+- Formal media-provider interface (`play`, `seek`, `currentTime`, `duration`, `onTick`) so YouTube etc. can plug in; gapless clip sequencing via two preloaded players
 - Drag-to-trim clip handles; story notes and comments as inline editors
 - Transcript editing
 

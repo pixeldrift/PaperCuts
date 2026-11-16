@@ -12,6 +12,8 @@ export interface Source {
   title: string
   date: string
   duration: number
+  /** Object/remote URL of the media file. Absent = simulated playback. */
+  mediaUrl?: string
   words: Word[]
   /** [firstWordIndex, lastWordIndex] per sentence. */
   sentences: [number, number][]

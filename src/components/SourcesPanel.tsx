@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Avatar, Icon } from '../icons'
+import { openImportPicker, runImport } from '../lib/runImport'
 import { fmt, useStore } from '../store'
 
 type SortKey = 'title' | 'duration' | 'date'
@@ -7,8 +8,9 @@ type SortKey = 'title' | 'duration' | 'date'
 export function SourcesPanel() {
   const sources = useStore((s) => s.sources)
   const selected = useStore((s) => s.selectedSourceId)
-  const { selectSource, removeSource, toast, setSourcesOpen } = useStore.getState()
+  const { selectSource, removeSource, setSourcesOpen } = useStore.getState()
   const [query, setQuery] = useState('')
+  const [dragging, setDragging] = useState(false)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null)
 
   const rows = useMemo(() => {
@@ -35,7 +37,17 @@ export function SourcesPanel() {
   )
 
   return (
-    <section className="pane sources" aria-label="Sources">
+    <section
+      className={`pane sources${dragging ? ' drop-active' : ''}`}
+      aria-label="Sources"
+      onDragOver={(e) => (e.preventDefault(), setDragging(true))}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setDragging(false)
+        void runImport([...e.dataTransfer.files])
+      }}
+    >
       <header className="pane-head">
         <h2>Sources</h2>
         <button className="drawer-close" onClick={() => setSourcesOpen(false)} aria-label="Close sources">
@@ -50,7 +62,7 @@ export function SourcesPanel() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="tool sm" title="Import Source (Cmd+I)" onClick={() => toast('Import isn’t wired up yet — drop-in media comes next')}>
+        <button className="tool sm" title="Import Source (Cmd+I)" onClick={openImportPicker}>
           <Icon name="importSource" size={18} />
         </button>
         <button className="tool sm" title="Remove Source" onClick={removeSource} data-tone="danger">
@@ -86,6 +98,7 @@ export function SourcesPanel() {
             ))}
           </tbody>
         </table>
+        <p className="drop-hint">Drop video and .srt / .vtt / .json transcript files here, or press the + button.</p>
       </div>
     </section>
   )

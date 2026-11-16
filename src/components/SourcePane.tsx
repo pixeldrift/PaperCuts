@@ -105,6 +105,12 @@ export function SourcePane() {
         ]}
       />
       <div className="transcript" ref={rootRef}>
+        {source.words.length === 0 && (
+          <div className="no-transcript">
+            <p>This source has no transcript yet.</p>
+            <p>Import an .srt, .vtt or word-level .json file (same name as the video) to start selecting.</p>
+          </div>
+        )}
         {paragraphs.map((para) => (
           <p key={para.p}>
             {para.words.map(({ w, i }) => {

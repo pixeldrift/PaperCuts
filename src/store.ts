@@ -126,6 +126,7 @@ interface State {
   newEdit: () => void
   save: () => void
   removeSource: () => void
+  addSources: (sources: Source[]) => void
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
@@ -218,10 +219,13 @@ export const useStore = create<State>((set, get) => {
       const s = get()
       if (!s.playing) return
       if (s.mode === 'source') {
+        if (currentSource().mediaUrl) return // driven by the <video> in Viewer
         const end = currentSource().duration
         const t = s.sourceT + dt
         set(t >= end ? { sourceT: end, playing: false } : { sourceT: t })
       } else {
+        const loc = locate(s.clips, s.editT)
+        if (loc && s.sources.find((x) => x.id === loc.clip.sourceId)?.mediaUrl) return
         const { total } = layout(s.clips)
         const t = s.editT + dt
         set(t >= total ? { editT: total, playing: false } : { editT: t })
@@ -381,6 +385,17 @@ export const useStore = create<State>((set, get) => {
         get().toast('Couldn’t save (storage unavailable)')
       }
     },
+    addSources: (added) => {
+      if (!added.length) return
+      set((s) => ({
+        sources: [...s.sources, ...added],
+        selectedSourceId: added[0].id,
+        sourceSel: null,
+        sourceT: 0,
+        playing: false,
+        sourcesOpen: false,
+      }))
+    },
     removeSource: () => {
       const s = get()
       if (s.sources.length <= 1) return s.toast('Keep at least one source')
@@ -398,8 +413,8 @@ function loadSaved(): Clip[] | null {
     const raw = localStorage.getItem('papercuts.edit')
     if (!raw) return null
     const data = JSON.parse(raw) as { clips: Clip[] }
-    const valid = data.clips.every((c) => SAMPLE_SOURCES.some((s) => s.id === c.sourceId))
-    return valid ? data.clips : null
+    const clips = data.clips.filter((c) => SAMPLE_SOURCES.some((s) => s.id === c.sourceId))
+    return clips.length ? clips : null
   } catch {
     return null
   }
