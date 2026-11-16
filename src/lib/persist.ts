@@ -34,7 +34,9 @@ async function run() {
     } else {
       clips = migrateLegacy() ?? sampleClips()
     }
-    clips = clips.filter((c) => sources.some((s) => s.id === c.sourceId))
+    clips = clips
+      .filter((c) => sources.some((s) => s.id === c.sourceId))
+      .map((c) => ({ ...c, notes: (c.notes ?? []).map((n, i) => ({ ...n, id: n.id ?? `n${i}-${c.id}` })) }))
 
     const { selectedSourceId } = useStore.getState()
     useStore.setState({

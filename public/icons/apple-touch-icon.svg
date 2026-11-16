@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#2B2C37"/><g transform="translate(256 256) scale(0.86) translate(-256 -256)">
+  <defs>
+    <g id="scis">
+      <path d="M276 186L391.8 308.7L368.2 327.3Z"/>
+      <path d="M272 306L382.7 303.3L377.3 332.7Z"/>
+      <path d="M371.1 319.3L388.9 316.7L403.3 413L385.5 415.6Z"/>
+      <path d="M374.1 324.8L385.9 311.2L423.7 343.6L411.9 357.2Z"/>
+      <path fill-rule="evenodd" d="M406 366A30 30 0 1 0 466 366A30 30 0 1 0 406 366ZM421 366A15 15 0 1 0 451 366A15 15 0 1 0 421 366Z"/>
+      <path fill-rule="evenodd" d="M368 438A30 30 0 1 0 428 438A30 30 0 1 0 368 438ZM383 438A15 15 0 1 0 413 438A15 15 0 1 0 383 438Z"/>
+    </g>
+  </defs>
+  <g transform="translate(-44 -41)">
+    <path d="M138 124H290L374 208V388H138Z" fill="#F5F5FA"/>
+    <path d="M290 124V208H374Z" fill="#B9B1FF"/>
+    <g fill="#2B2C37">
+      <rect x="156" y="158" width="30" height="38" rx="8"/>
+      <rect x="156" y="216" width="30" height="38" rx="8"/>
+      <rect x="156" y="274" width="30" height="38" rx="8"/>
+      <rect x="156" y="332" width="30" height="38" rx="8"/>
+    </g>
+    <path d="M214 204V326L292 265Z" fill="#7A6CF6" stroke="#7A6CF6" stroke-width="14" stroke-linejoin="round"/>
+    <use href="#scis" fill="#2B2C37" stroke="#2B2C37" stroke-width="20" stroke-linejoin="round"/>
+    <use href="#scis" fill="#FFFFFF"/>
+    <circle cx="380" cy="318" r="11" fill="#7A6CF6"/>
+  </g>
+</g></svg>

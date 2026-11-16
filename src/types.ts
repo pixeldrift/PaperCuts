@@ -20,6 +20,7 @@ export interface Source {
 }
 
 export interface Note {
+  id: string
   kind: 'story' | 'comment'
   text: string
 }

@@ -1,9 +1,50 @@
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '../icons'
 import { fmtShort, layout, locate, useStore } from '../store'
 import type { Clip, Word } from '../types'
 import { Toolbar } from './Toolbar'
 import { Viewer } from './Viewer'
+
+const NOTE_LABEL = { story: 'Story note', comment: 'Comment' } as const
+
+/** Inline textarea: Enter / blur saves, Shift+Enter adds a line, Esc cancels. */
+function NoteEditor({ kind, initial }: { kind: 'story' | 'comment'; initial: string }) {
+  const [text, setText] = useState(initial)
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const { saveNote, cancelNote } = useStore.getState()
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.focus()
+    el.setSelectionRange(el.value.length, el.value.length)
+  }, [])
+  // grow with content
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [text])
+  return (
+    <div className="clip-note editing" data-kind={kind} onClick={(e) => e.stopPropagation()}>
+      <b>{NOTE_LABEL[kind]}</b>
+      <textarea
+        ref={ref}
+        rows={1}
+        value={text}
+        placeholder={kind === 'story' ? 'What is this clip doing in the story?' : 'Leave a comment…'}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => saveNote(text)}
+        onKeyDown={(e) => {
+          e.stopPropagation() // don't trigger editor shortcuts while typing
+          if (e.key === 'Escape') cancelNote()
+          else if (e.key === 'Enter' && !e.shiftKey) (e.preventDefault(), saveNote(text))
+        }}
+      />
+      <span className="note-hint">Enter to save · Esc to cancel</span>
+    </div>
+  )
+}
 
 function RefinePopover() {
   const refine = useStore((s) => s.refine)
@@ -61,7 +102,8 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
     return loc?.clip.id === clip.id ? loc.sourceT : -1
   })
   const refine = useStore((s) => s.refine)
-  const { selectClip, seekEdit, removeClip, openRefine, trimDrag, endTrimDrag } = useStore.getState()
+  const editing = useStore((s) => (s.editingNote?.clipId === clip.id ? s.editingNote : null))
+  const { selectClip, seekEdit, removeClip, openRefine, trimDrag, endTrimDrag, editNote, deleteNote } = useStore.getState()
   const blockRef = useRef<HTMLElement>(null)
   const drag = useRef<{ which: 'in' | 'out'; x: number; y: number; moved: boolean } | null>(null)
 
@@ -160,11 +202,24 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
             })}
           </p>
         ))}
-        {clip.notes.map((n, i) => (
-          <div key={i} className="clip-note" data-kind={n.kind}>
-            <b>{n.kind === 'story' ? 'Story note' : 'Comment'}</b> {n.text}
-          </div>
-        ))}
+        {clip.notes.map((n) =>
+          editing?.noteId === n.id ? (
+            <NoteEditor key={n.id} kind={n.kind} initial={n.text} />
+          ) : (
+            <div key={n.id} className="clip-note" data-kind={n.kind}>
+              <b>{NOTE_LABEL[n.kind]}</b> <span className="note-text">{n.text}</span>
+              <span className="note-actions">
+                <button aria-label="Edit note" title="Edit" onClick={(e) => (e.stopPropagation(), selectClip(clip.id), editNote(clip.id, n))}>
+                  ✎
+                </button>
+                <button aria-label="Delete note" title="Delete" onClick={(e) => (e.stopPropagation(), deleteNote(clip.id, n.id))}>
+                  ✕
+                </button>
+              </span>
+            </div>
+          ),
+        )}
+        {editing && editing.noteId === null && <NoteEditor kind={editing.kind} initial="" />}
       </div>
       {selected && (
         <>

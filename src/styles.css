@@ -74,12 +74,21 @@ kbd {
 }
 .brand {
   align-self: center;
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-bottom: 6px;
+  color: inherit;
+  text-decoration: none;
 }
-.brand span {
-  color: var(--accent-hi);
+.brand-icon {
+  display: block;
+  border-radius: 8px;
+}
+.brand-word {
+  display: block;
+  height: 22px;
+  width: auto;
 }
 .menu-btn {
   display: none;
@@ -1011,4 +1020,105 @@ body.trimming * {
   cursor: grabbing !important;
   user-select: none !important;
   -webkit-user-select: none !important;
+}
+
+/* ───────── story notes & comments ───────── */
+.clip-note {
+  position: relative;
+  padding: 7px 56px 7px 10px;
+  line-height: 1.45;
+}
+.clip-note b {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent-hi);
+}
+.clip-note[data-kind='comment'] b {
+  color: #e2b45f;
+}
+.note-text {
+  white-space: pre-wrap;
+}
+.note-actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.clip-note:hover .note-actions,
+.clip-note:focus-within .note-actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .note-actions {
+    opacity: 1;
+  }
+}
+.note-actions button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.note-actions button:hover {
+  background: var(--panel-3);
+  color: var(--text);
+}
+.clip-note.editing {
+  padding-right: 10px;
+  background: var(--panel);
+  border-left-width: 3px;
+  box-shadow: 0 0 0 1.5px var(--accent-line);
+}
+.clip-note[data-kind='comment'].editing {
+  box-shadow: 0 0 0 1.5px rgba(226, 180, 95, 0.55);
+}
+.clip-note textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.note-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.tclip-notes {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  flex: none;
+}
+@media (max-width: 720px) {
+  .clip-note textarea {
+    font-size: 16px; /* stops iOS zooming into the field */
+  }
 }

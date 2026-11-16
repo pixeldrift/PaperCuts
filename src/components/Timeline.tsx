@@ -59,6 +59,11 @@ export function Timeline() {
               >
                 <span className="tclip-name">{name}</span>
                 {w > 90 && <Avatar size={22} />}
+                {c.notes.length > 0 && (
+                  <span className="tclip-notes" title={`${c.notes.length} note${c.notes.length > 1 ? 's' : ''}`}>
+                    {c.notes.length}
+                  </span>
+                )}
               </button>
             )
           })}

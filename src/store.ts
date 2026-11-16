@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Clip, Pane, Source, Tab, Word } from './types'
+import type { Clip, Note, Pane, Source, Tab, Word } from './types'
 import { SAMPLE_SOURCES } from './data/sample'
 import { deleteSource, kvGet, kvSet } from './lib/db'
 
@@ -95,6 +95,8 @@ interface State {
   editT: number
 
   refine: { which: 'in' | 'out'; delta: number } | null
+  /** The inline note editor that's open (noteId null = a new note). */
+  editingNote: { clipId: string; noteId: string | null; kind: Note['kind'] } | null
   timelineZoom: number
   toastMsg: string | null
 
@@ -124,7 +126,11 @@ interface State {
   endTrimDrag: () => void
   openRefine: (which: 'in' | 'out' | null) => void
   nudge: (frames: number) => void
-  addNote: (kind: 'story' | 'comment') => void
+  addNote: (kind: Note['kind']) => void
+  editNote: (clipId: string, note: Note) => void
+  saveNote: (text: string) => void
+  cancelNote: () => void
+  deleteNote: (clipId: string, noteId: string) => void
   undo: () => void
   redo: () => void
   newEdit: () => void
@@ -195,6 +201,7 @@ export const useStore = create<State>((set, get) => {
     editT: 0,
 
     refine: null,
+    editingNote: null,
     timelineZoom: 14,
     toastMsg: null,
 
@@ -367,16 +374,34 @@ export const useStore = create<State>((set, get) => {
       set({ refine: { which, delta: s.refine.delta + frames } })
     },
     addNote: (kind) => {
-      const s = get()
-      if (!s.selectedClipId) return get().toast('Select a clip first')
-      const text = window.prompt(kind === 'story' ? 'Story note' : 'Comment')
-      if (!text?.trim()) return
-      commit(
-        s.clips.map((c) =>
-          c.id === s.selectedClipId ? { ...c, notes: [...c.notes, { kind, text: text.trim() }] } : c,
-        ),
-      )
+      const { selectedClipId } = get()
+      if (!selectedClipId) return get().toast('Select a clip first')
+      set({ editingNote: { clipId: selectedClipId, noteId: null, kind }, refine: null })
     },
+    editNote: (clipId, note) => set({ editingNote: { clipId, noteId: note.id, kind: note.kind } }),
+    cancelNote: () => set({ editingNote: null }),
+    saveNote: (text) => {
+      const edit = get().editingNote
+      if (!edit) return // already cancelled (Esc) — the textarea's blur lands here too
+      set({ editingNote: null })
+      const body = text.trim()
+      const { clips } = get()
+      const next = clips.map((c) => {
+        if (c.id !== edit.clipId) return c
+        if (edit.noteId === null) {
+          return body ? { ...c, notes: [...c.notes, { id: newId(), kind: edit.kind, text: body }] } : c
+        }
+        return {
+          ...c,
+          notes: body
+            ? c.notes.map((n) => (n.id === edit.noteId ? { ...n, text: body } : n))
+            : c.notes.filter((n) => n.id !== edit.noteId), // clearing the text deletes the note
+        }
+      })
+      if (next.some((c, i) => c !== clips[i])) commit(next)
+    },
+    deleteNote: (clipId, noteId) =>
+      commit(get().clips.map((c) => (c.id === clipId ? { ...c, notes: c.notes.filter((n) => n.id !== noteId) } : c))),
     undo: () =>
       set((s) => {
         if (!s.past.length) return s
@@ -386,6 +411,7 @@ export const useStore = create<State>((set, get) => {
           past: s.past.slice(0, -1),
           future: [s.clips, ...s.future],
           refine: null,
+          editingNote: null,
           selectedClipId: prev.some((c) => c.id === s.selectedClipId) ? s.selectedClipId : null,
         }
       }),
@@ -398,6 +424,7 @@ export const useStore = create<State>((set, get) => {
           past: [...s.past, s.clips],
           future: rest,
           refine: null,
+          editingNote: null,
           selectedClipId: next.some((c) => c.id === s.selectedClipId) ? s.selectedClipId : null,
         }
       }),

@@ -8,6 +8,17 @@ npm run dev      # http://localhost:5173
 npm run build
 ```
 
+## Branding
+App icon, favicon, PWA manifest and logo lockups live in `public/` and `brand/`. Everything is flat colour with text converted to outlines.
+
+```bash
+pip install fonttools brotli uharfbuzz
+python3 brand/build.py              # regenerate SVGs (default pairing: Fraunces + Space Grotesk)
+python3 brand/build.py instrument   # or: dmserif — try another font pairing
+node brand/render.cjs               # rasterise PNGs (needs playwright)
+```
+Icon artwork is in `brand/icon.py`; colours match the app (`#2B2C37` tile, `#7A6CF6` accent). Previews: `brand/preview/`.
+
 ## Importing sources
 Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
 - Media: mp4, m4v, mov, webm, mkv, mp3, m4a, wav, ogg (what actually plays depends on the browser's codecs; webm/mp4-h264 are safest).
@@ -32,7 +43,7 @@ Select a clip to reveal faded words of source context around it. Drag the left/r
 - ~~Persist imported sources, media and the edit (IndexedDB)~~ — done; autosaves, survives reloads
 - Formal media-provider interface (`play`, `seek`, `currentTime`, `duration`, `onTick`) so YouTube etc. can plug in; gapless clip sequencing via two preloaded players
 - ~~Drag-to-trim clip handles~~ — done; select a clip, drag a handle over the faded context words (click a handle for frame-level Refine)
-- Story notes and comments as inline editors (currently a browser prompt)
+- ~~Story notes and comments as inline editors~~ — done (`N` / `C` on a selected clip; Enter saves, Esc cancels, empty text deletes)
 - Multiple named edits; storage-usage / manage-media screen
 - Transcript editing
 
