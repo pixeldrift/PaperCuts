@@ -3,6 +3,8 @@ import { Icon, type IconName } from '../icons'
 export interface Tool {
   icon: IconName
   label: string
+  /** Short caption shown under the icon. */
+  short?: string
   shortcut?: string
   onClick: () => void
   disabled?: boolean
@@ -25,12 +27,12 @@ export function Toolbar({ groups }: { groups: Tool[][] }) {
   )
 }
 
-export function ToolButton({ icon, label, shortcut, onClick, disabled, active, tone }: Tool) {
+export function ToolButton({ icon, label, short, shortcut, onClick, disabled, active, tone }: Tool) {
   const title = shortcut ? `${label} (${shortcut})` : label
   return (
     <button
       type="button"
-      className="tool"
+      className={short ? 'tool labeled' : 'tool'}
       data-active={active || undefined}
       data-tone={tone}
       title={title}
@@ -41,6 +43,7 @@ export function ToolButton({ icon, label, shortcut, onClick, disabled, active, t
       onClick={onClick}
     >
       <Icon name={icon} size={20} />
+      {short && <span className="tool-label">{short}</span>}
     </button>
   )
 }

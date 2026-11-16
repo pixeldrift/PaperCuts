@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '../icons'
+import { EditHint } from './EditHint'
+import { WordInput } from './WordInput'
 import { fmtShort, layout, locate, useStore } from '../store'
 import type { Clip, Word } from '../types'
 import { Toolbar } from './Toolbar'
@@ -102,6 +104,8 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
     return loc?.clip.id === clip.id ? loc.sourceT : -1
   })
   const refine = useStore((s) => s.refine)
+  const editMode = useStore((s) => s.editMode)
+  const editWordIdx = useStore((s) => (s.editingWord?.sourceId === clip.sourceId ? s.editingWord.index : -1))
   const editing = useStore((s) => (s.editingNote?.clipId === clip.id ? s.editingNote : null))
   const { selectClip, seekEdit, removeClip, openRefine, trimDrag, endTrimDrag, editNote, deleteNote } = useStore.getState()
   const blockRef = useRef<HTMLElement>(null)
@@ -118,9 +122,10 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
   const to = selected ? Math.min(all.length - 1, b + CONTEXT) : b
   for (let i = from; i <= to; i++) shown.push({ w: all[i], i, ctx: i < a || i > b })
 
-  const onWord = (e: React.MouseEvent, ms: number) => {
+  const onWord = (e: React.MouseEvent, ms: number, index: number) => {
     e.stopPropagation()
     selectClip(clip.id)
+    if (useStore.getState().editMode) return useStore.getState().startWordEdit(source.id, index)
     const { clips } = useStore.getState()
     seekEdit(layout(clips).starts[clips.findIndex((c) => c.id === clip.id)] + (ms - clip.inMs))
   }
@@ -188,14 +193,21 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
           {fmtShort(clip.outMs)}
         </span>
       </div>
-      <div className="clip-text">
+      <div className="clip-text" data-edit={editMode || undefined}>
         {paras.map((p, pi) => (
           <p key={pi}>
             {p.map(({ w, i, ctx }) => {
               const isCur = !ctx && curT >= w.s && curT < w.e + 35
               const cls = ctx ? 'ctx' : isCur ? 'cur' : undefined
+              if (!ctx && i === editWordIdx) {
+                return (
+                  <span key={i} data-wi={i} className="editing-word">
+                    <WordInput sourceId={source.id} index={i} initial={w.t} />{' '}
+                  </span>
+                )
+              }
               return (
-                <span key={i} data-wi={i} className={cls} onClick={ctx ? undefined : (e) => onWord(e, w.s)}>
+                <span key={i} data-wi={i} className={cls} onClick={ctx ? undefined : (e) => onWord(e, w.s, i)}>
                   {w.t}{' '}
                 </span>
               )
@@ -254,6 +266,7 @@ export function EditPane() {
   const refine = useStore((s) => s.refine)
   const st = useStore.getState()
   const none = !selectedId
+  const editMode = useStore((s) => s.editMode)
 
   return (
     <section className="pane edit-pane" aria-label="Paper edit">
@@ -264,23 +277,24 @@ export function EditPane() {
       <Toolbar
         groups={[
           [
-            { icon: 'storyNote', label: 'Add Story Note', shortcut: 'N', onClick: () => st.addNote('story'), disabled: none },
-            { icon: 'comment', label: 'Add Comment', shortcut: 'C', onClick: () => st.addNote('comment'), disabled: none },
-            { icon: 'editTranscript', label: 'Edit Transcript', shortcut: 'T', onClick: () => st.toast('Transcript editing is coming soon') },
+            { icon: 'storyNote', label: 'Add Story Note', short: 'Story Note', shortcut: 'N', onClick: () => st.addNote('story'), disabled: none },
+            { icon: 'comment', label: 'Add Comment', short: 'Comment', shortcut: 'C', onClick: () => st.addNote('comment'), disabled: none },
+            { icon: 'editTranscript', label: 'Edit Transcript', short: 'Edit Text', shortcut: 'T', onClick: st.toggleTranscriptEdit, active: editMode },
           ],
           [
-            { icon: 'trimIn', label: 'Trim In Point', shortcut: 'Q', onClick: () => st.trim('in'), disabled: none },
-            { icon: 'trimOut', label: 'Trim Out Point', shortcut: 'W', onClick: () => st.trim('out'), disabled: none },
+            { icon: 'trimIn', label: 'Trim In Point', short: 'Trim In', shortcut: 'Q', onClick: () => st.trim('in'), disabled: none },
+            { icon: 'trimOut', label: 'Trim Out Point', short: 'Trim Out', shortcut: 'W', onClick: () => st.trim('out'), disabled: none },
           ],
-          [{ icon: 'refine', label: 'Refine In/Out', shortcut: 'R', onClick: () => st.openRefine(refine ? null : 'out'), disabled: none, active: !!refine }],
+          [{ icon: 'refine', label: 'Refine In/Out', short: 'Refine', shortcut: 'R', onClick: () => st.openRefine(refine ? null : 'out'), disabled: none, active: !!refine }],
           [
-            { icon: 'cutClip', label: 'Cut Clip', shortcut: 'K', onClick: st.cut, disabled: !clips.length },
-            { icon: 'glueClips', label: 'Glue Clips', shortcut: 'G', onClick: st.glue, disabled: none },
+            { icon: 'cutClip', label: 'Cut Clip', short: 'Cut', shortcut: 'K', onClick: st.cut, disabled: !clips.length },
+            { icon: 'glueClips', label: 'Glue Clips', short: 'Glue', shortcut: 'G', onClick: st.glue, disabled: none },
           ],
-          [{ icon: 'removeClip', label: 'Remove Clip', shortcut: 'X', onClick: st.removeClip, disabled: none, tone: 'danger' }],
+          [{ icon: 'removeClip', label: 'Remove Clip', short: 'Remove', shortcut: 'X', onClick: st.removeClip, disabled: none, tone: 'danger' }],
         ]}
       />
-      <div className="transcript edit-transcript" onClick={() => st.selectClip(null)}>
+      {editMode && <EditHint />}
+      <div className="transcript edit-transcript" data-edit={editMode || undefined} onClick={() => st.selectClip(null)}>
         {clips.length === 0 && (
           <div className="empty">
             <p>This edit is empty.</p>

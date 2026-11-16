@@ -39,8 +39,14 @@ Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
 ## Trimming
 Select a clip to reveal faded words of source context around it. Drag the left/right handle over the text to move the in/out point (one undo step per drag). A plain click on a handle opens **Refine** for ±1 frame (Shift = ±10; also ←/→ while open).
 
+## Transcript editing
+Press **T** (or *Edit Text*) in either pane, then click a word: **Enter** saves, **Tab / Shift+Tab** saves and moves to the next/previous word, **Esc** cancels (Esc again leaves the mode). Typing a space splits a word in two (its time is shared by length); clearing it deletes the word. Timing is never changed, so clips and trims stay put. Edits autosave and are undoable.
+
+## Undo / redo
+`⌘Z` / `⌘⇧Z`, or the Undo / Redo buttons in the top bar (also on phones). History covers clip edits, trims, notes **and** transcript text.
+
 ## Shortcuts
-`,` insert · `.` overwrite · `Q`/`W` trim in/out · `R` refine · `K` cut · `G` glue · `X` remove clip · `N`/`C` note/comment · `Space` play · `⌘Z` undo · `⌘S` save · `+`/`-` text size
+`,` insert · `.` overwrite · `Q`/`W` trim in/out · `R` refine · `K` cut · `G` glue · `X` remove clip · `N`/`C` note/comment · `Space` play · `T` edit transcript · `⌘Z` undo · `⌘⇧Z` redo · `⌘S` save · `+`/`-` text size
 
 ## Roadmap
 
@@ -51,7 +57,7 @@ Select a clip to reveal faded words of source context around it. Drag the left/r
 - ~~Drag-to-trim clip handles~~ — done; select a clip, drag a handle over the faded context words (click a handle for frame-level Refine)
 - ~~Story notes and comments as inline editors~~ — done (`N` / `C` on a selected clip; Enter saves, Esc cancels, empty text deletes)
 - Multiple named edits; storage-usage / manage-media screen
-- Transcript editing
+- ~~Transcript editing~~ — done (`T`): click a word to fix it; Space splits, empty deletes, Tab moves on
 
 **Later**
 - **YouTube sources (super rough cut):** let people use their own YouTube videos as sources for quick, shareable rough cuts, aimed at users who don't already have a review workflow such as Frame.io.

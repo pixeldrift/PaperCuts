@@ -1,7 +1,10 @@
 import { SAMPLE_SOURCES, sampleClips } from '../data/sample'
 import { useStore } from '../store'
 import type { Clip } from '../types'
-import { kvGet, kvSet, loadSources, type StoredEdit } from './db'
+import { kvGet, kvSet, loadSources, saveSourceText, type StoredEdit } from './db'
+import type { Source } from '../types'
+
+type SampleText = Record<string, Pick<Source, 'words' | 'sentences'>>
 
 let started: Promise<void> | null = null
 
@@ -13,17 +16,20 @@ export function initPersistence() {
 
 async function run() {
   try {
-    const [stored, edit, removed] = await Promise.all([
+    const [stored, edit, removed, sampleText] = await Promise.all([
       loadSources(),
       kvGet<StoredEdit>('edit'),
       kvGet<string[]>('removedSamples'),
+      kvGet<SampleText>('sampleText'),
     ])
     const hidden = new Set(removed ?? [])
     const imported = stored.map(({ src, blob }) => {
       const { hasMedia: _h, ...rest } = src
       return { ...rest, mediaUrl: blob ? URL.createObjectURL(blob) : undefined }
     })
-    let sources = [...SAMPLE_SOURCES.filter((s) => !hidden.has(s.id)), ...imported]
+    // sample transcripts are regenerated from code, so edits to them are stored as overrides
+    const samples = SAMPLE_SOURCES.filter((s) => !hidden.has(s.id)).map((s) => (sampleText?.[s.id] ? { ...s, ...sampleText[s.id] } : s))
+    let sources = [...samples, ...imported]
     if (!sources.length) sources = [...SAMPLE_SOURCES]
 
     let clips: Clip[]
@@ -50,6 +56,38 @@ async function run() {
     console.error('Persistence unavailable, running in-memory', err)
     useStore.setState({ clips: sampleClips(), hydrated: true })
   }
+
+  // autosave edited transcript text (debounced)
+  const dirty = new Set<string>()
+  let textTimer: ReturnType<typeof setTimeout> | undefined
+  const flushText = async () => {
+    const ids = [...dirty]
+    dirty.clear()
+    for (const id of ids) {
+      const src = useStore.getState().sources.find((x) => x.id === id)
+      if (!src) continue
+      try {
+        if (SAMPLE_SOURCES.some((x) => x.id === id)) {
+          const all = (await kvGet<SampleText>('sampleText')) ?? {}
+          await kvSet('sampleText', { ...all, [id]: { words: src.words, sentences: src.sentences } })
+        } else {
+          await saveSourceText(src)
+        }
+      } catch {
+        useStore.getState().toast('Couldn’t save transcript changes (storage unavailable)')
+      }
+    }
+  }
+  useStore.subscribe((s, prev) => {
+    if (s.sources === prev.sources) return
+    for (const src of s.sources) {
+      const old = prev.sources.find((x) => x.id === src.id)
+      if (old && old.words !== src.words) dirty.add(src.id)
+    }
+    if (!dirty.size) return
+    clearTimeout(textTimer)
+    textTimer = setTimeout(() => void flushText(), 400)
+  })
 
   // autosave the edit (debounced)
   let timer: ReturnType<typeof setTimeout> | undefined

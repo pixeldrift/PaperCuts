@@ -1,4 +1,6 @@
 import { memo, useEffect, useMemo, useRef } from 'react'
+import { WordInput } from './WordInput'
+import { EditHint } from './EditHint'
 import { findWord, selectSource, useStore } from '../store'
 import type { Word } from '../types'
 import { Toolbar } from './Toolbar'
@@ -8,11 +10,22 @@ const WordSpan = memo(function WordSpan({
   i,
   text,
   state,
+  editing,
+  sourceId,
 }: {
   i: number
   text: string
   state: string
+  editing: boolean
+  sourceId: string
 }) {
+  if (editing) {
+    return (
+      <span data-w={i} className="editing-word">
+        <WordInput sourceId={sourceId} index={i} initial={text} />{' '}
+      </span>
+    )
+  }
   return (
     <span data-w={i} className={state || undefined}>
       {text}{' '}
@@ -35,6 +48,8 @@ export function SourcePane() {
   const sel = useStore((s) => s.sourceSel)
   const cur = useStore((s) => (s.mode === 'source' ? findWord(selectSource(s).words, s.sourceT) : -1))
   const playing = useStore((s) => s.playing && s.mode === 'source')
+  const editMode = useStore((s) => s.editMode)
+  const editIdx = useStore((s) => (s.editingWord?.sourceId === s.selectedSourceId ? s.editingWord.index : -1))
   const rootRef = useRef<HTMLDivElement>(null)
   const st = useStore.getState()
 
@@ -90,21 +105,34 @@ export function SourcePane() {
       <Toolbar
         groups={[
           [
-            { icon: 'storyNote', label: 'Add Story Note', shortcut: 'N', onClick: () => st.toast('Story notes attach to clips in the paper edit') },
-            { icon: 'comment', label: 'Add Comment', shortcut: 'C', onClick: () => st.toast('Comments attach to clips in the paper edit') },
-            { icon: 'editTranscript', label: 'Edit Transcript', shortcut: 'T', onClick: () => st.toast('Transcript editing is coming soon') },
+            { icon: 'storyNote', label: 'Add Story Note', short: 'Story Note', shortcut: 'N', onClick: () => st.toast('Story notes attach to clips in the paper edit') },
+            { icon: 'comment', label: 'Add Comment', short: 'Comment', shortcut: 'C', onClick: () => st.toast('Comments attach to clips in the paper edit') },
+            { icon: 'editTranscript', label: 'Edit Transcript', short: 'Edit Text', shortcut: 'T', onClick: st.toggleTranscriptEdit, active: editMode },
           ],
           [
-            { icon: 'insert', label: 'Insert', shortcut: ',', onClick: st.insert, disabled: !sel },
-            { icon: 'overwrite', label: 'Overwrite', shortcut: '.', onClick: st.overwrite, disabled: !sel },
+            { icon: 'insert', label: 'Insert', short: 'Insert', shortcut: ',', onClick: st.insert, disabled: !sel },
+            { icon: 'overwrite', label: 'Overwrite', short: 'Overwrite', shortcut: '.', onClick: st.overwrite, disabled: !sel },
           ],
           [
-            { icon: 'textGrow', label: 'Zoom Text', shortcut: '+', onClick: () => st.zoomText(1) },
-            { icon: 'textShrink', label: 'Shrink Text', shortcut: '−', onClick: () => st.zoomText(-1) },
+            { icon: 'textGrow', label: 'Zoom Text', short: 'Text +', shortcut: '+', onClick: () => st.zoomText(1) },
+            { icon: 'textShrink', label: 'Shrink Text', short: 'Text −', shortcut: '−', onClick: () => st.zoomText(-1) },
           ],
         ]}
       />
-      <div className="transcript" ref={rootRef}>
+      {editMode && <EditHint />}
+      <div
+        className="transcript"
+        ref={rootRef}
+        data-edit={editMode || undefined}
+        onClick={(e) => {
+          // a plain click on a word: edit it (edit mode) or jump the playhead to it
+          const el = (e.target as HTMLElement).closest<HTMLElement>('[data-w]')
+          if (!el || el.classList.contains('editing-word') || !window.getSelection()?.isCollapsed) return
+          const i = Number(el.dataset.w)
+          if (useStore.getState().editMode) useStore.getState().startWordEdit(source.id, i)
+          else useStore.getState().seekSource(source.words[i].s)
+        }}
+      >
         {source.words.length === 0 && (
           <div className="no-transcript">
             <p>This source has no transcript yet.</p>
@@ -121,7 +149,7 @@ export function SourcePane() {
               ]
                 .filter(Boolean)
                 .join(' ')
-              return <WordSpan key={i} i={i} text={w.t} state={cls} />
+              return <WordSpan key={i} i={i} text={w.t} state={cls} editing={i === editIdx} sourceId={source.id} />
             })}
           </p>
         ))}

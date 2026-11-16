@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { Clip, Note, Pane, Source, Tab, Word } from './types'
 import { SAMPLE_SOURCES } from './data/sample'
 import { deleteSource, kvGet, kvSet } from './lib/db'
+import { sentenceRanges } from './lib/transcript'
 
 export const FPS = 30
 export const FRAME = 1000 / FPS
@@ -69,6 +70,35 @@ export function clipWords(src: Source, clip: Clip) {
   return src.words.filter((w) => w.s >= clip.inMs - 1 && w.e <= clip.outMs + 1)
 }
 
+// ───────────────────────── history ─────────────────────────
+
+/** Everything undo can restore: the clip list plus each source's (editable) transcript. */
+interface Snapshot {
+  clips: Clip[]
+  text: Record<string, { words: Word[]; sentences: [number, number][] }>
+}
+
+const snapshot = (s: { clips: Clip[]; sources: Source[] }): Snapshot => ({
+  clips: s.clips,
+  text: Object.fromEntries(s.sources.map((x) => [x.id, { words: x.words, sentences: x.sentences }])),
+})
+
+/** State changes needed to put a snapshot back (sources added/removed since are left alone). */
+function restore(snap: Snapshot, s: { sources: Source[]; selectedClipId: string | null }) {
+  return {
+    clips: snap.clips,
+    sources: s.sources.map((x) => {
+      const t = snap.text[x.id]
+      return t && t.words !== x.words ? { ...x, words: t.words, sentences: t.sentences } : x
+    }),
+    refine: null,
+    editingNote: null,
+    editingWord: null,
+    sourceSel: null,
+    selectedClipId: snap.clips.some((c) => c.id === s.selectedClipId) ? s.selectedClipId : null,
+  }
+}
+
 // ───────────────────────── store ─────────────────────────
 
 interface State {
@@ -86,8 +116,8 @@ interface State {
   editName: string
   clips: Clip[]
   selectedClipId: string | null
-  past: Clip[][]
-  future: Clip[][]
+  past: Snapshot[]
+  future: Snapshot[]
 
   mode: 'source' | 'edit'
   playing: boolean
@@ -97,6 +127,9 @@ interface State {
   refine: { which: 'in' | 'out'; delta: number } | null
   /** The inline note editor that's open (noteId null = a new note). */
   editingNote: { clipId: string; noteId: string | null; kind: Note['kind'] } | null
+  /** Transcript editing mode (T) and the word whose inline editor is open. */
+  editMode: boolean
+  editingWord: { sourceId: string; index: number } | null
   timelineZoom: number
   toastMsg: string | null
 
@@ -131,6 +164,11 @@ interface State {
   saveNote: (text: string) => void
   cancelNote: () => void
   deleteNote: (clipId: string, noteId: string) => void
+  toggleTranscriptEdit: () => void
+  startWordEdit: (sourceId: string, index: number) => void
+  cancelWordEdit: () => void
+  /** Apply the typed text to the open word. move: 1/-1 = continue to the next/previous word. */
+  commitWordEdit: (text: string, move?: -1 | 0 | 1) => void
   undo: () => void
   redo: () => void
   newEdit: () => void
@@ -140,7 +178,7 @@ interface State {
 }
 
 /** Clips as they were when the current trim-drag began (for one undo step). */
-let dragBase: Clip[] | null = null
+let dragBase: Snapshot | null = null
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -149,7 +187,7 @@ export const useStore = create<State>((set, get) => {
   const commit = (clips: Clip[], selectedClipId?: string | null) =>
     set((s) => ({
       clips,
-      past: [...s.past.slice(-99), s.clips],
+      past: [...s.past.slice(-99), snapshot(s)],
       future: [],
       selectedClipId: selectedClipId === undefined ? s.selectedClipId : selectedClipId,
     }))
@@ -202,6 +240,8 @@ export const useStore = create<State>((set, get) => {
 
     refine: null,
     editingNote: null,
+    editMode: false,
+    editingWord: null,
     timelineZoom: 14,
     toastMsg: null,
 
@@ -337,7 +377,7 @@ export const useStore = create<State>((set, get) => {
       const clip = s.clips.find((c) => c.id === clipId)
       if (!clip) return
       const src = s.sources.find((x) => x.id === clip.sourceId)!
-      dragBase ??= s.clips
+      dragBase ??= snapshot(s)
       const next = s.clips.map((c) =>
         c.id !== clipId
           ? c
@@ -350,7 +390,7 @@ export const useStore = create<State>((set, get) => {
     endTrimDrag: () => {
       const base = dragBase
       dragBase = null
-      if (!base || base === get().clips) return
+      if (!base || base.clips === get().clips) return
       set((s) => ({ past: [...s.past.slice(-99), base], future: [] }))
     },
     openRefine: (which) => {
@@ -402,17 +442,60 @@ export const useStore = create<State>((set, get) => {
     },
     deleteNote: (clipId, noteId) =>
       commit(get().clips.map((c) => (c.id === clipId ? { ...c, notes: c.notes.filter((n) => n.id !== noteId) } : c))),
+    toggleTranscriptEdit: () =>
+      set((s) => ({ editMode: !s.editMode, editingWord: null, refine: null, editingNote: null, sourceSel: null })),
+    startWordEdit: (sourceId, index) => set({ editingWord: { sourceId, index }, editingNote: null, refine: null }),
+    cancelWordEdit: () => set({ editingWord: null }),
+    commitWordEdit: (text, move = 0) => {
+      const s = get()
+      const edit = s.editingWord
+      if (!edit) return // already closed (Esc / Enter) — blur lands here too
+      const src = s.sources.find((x) => x.id === edit.sourceId)
+      const word = src?.words[edit.index]
+      if (!src || !word) return set({ editingWord: null })
+
+      const body = text.trim()
+      let words = src.words
+      let next = edit.index + 1
+      if (!body) {
+        // clearing a word deletes it
+        words = [...src.words.slice(0, edit.index), ...src.words.slice(edit.index + 1)]
+        next = edit.index
+      } else if (body !== word.t) {
+        // a space splits the word; its time is shared out by length
+        const tokens = body.split(/\s+/)
+        const total = tokens.reduce((n, t) => n + t.length, 0)
+        let at = word.s
+        const parts = tokens.map((t, i) => {
+          const end = i === tokens.length - 1 ? word.e : Math.round(at + ((word.e - word.s) * t.length) / total)
+          const w = { ...word, t, s: at, e: end }
+          at = end
+          return w
+        })
+        words = [...src.words.slice(0, edit.index), ...parts, ...src.words.slice(edit.index + 1)]
+        next = edit.index + parts.length
+      }
+
+      const target = move === 1 ? next : move === -1 ? edit.index - 1 : -1
+      const open = target >= 0 && target < words.length ? { sourceId: src.id, index: target } : null
+      if (words === src.words) return set({ editingWord: open })
+
+      set((st) => ({
+        past: [...st.past.slice(-99), snapshot(st)],
+        future: [],
+        sources: st.sources.map((x) => (x.id === src.id ? { ...x, words, sentences: sentenceRanges(words) } : x)),
+        sourceSel: null, // word indices shifted
+        editingWord: open,
+      }))
+    },
     undo: () =>
       set((s) => {
         if (!s.past.length) return s
         const prev = s.past[s.past.length - 1]
         return {
-          clips: prev,
+          ...restore(prev, s),
           past: s.past.slice(0, -1),
-          future: [s.clips, ...s.future],
-          refine: null,
-          editingNote: null,
-          selectedClipId: prev.some((c) => c.id === s.selectedClipId) ? s.selectedClipId : null,
+          future: [snapshot(s), ...s.future],
         }
       }),
     redo: () =>
@@ -420,12 +503,9 @@ export const useStore = create<State>((set, get) => {
         if (!s.future.length) return s
         const [next, ...rest] = s.future
         return {
-          clips: next,
-          past: [...s.past, s.clips],
+          ...restore(next, s),
+          past: [...s.past, snapshot(s)],
           future: rest,
-          refine: null,
-          editingNote: null,
-          selectedClipId: next.some((c) => c.id === s.selectedClipId) ? s.selectedClipId : null,
         }
       }),
     newEdit: () => {

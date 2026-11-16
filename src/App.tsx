@@ -52,12 +52,18 @@ function useShortcuts() {
         k: st.cut,
         g: st.glue,
         x: st.removeClip,
+        t: st.toggleTranscriptEdit,
         n: () => st.addNote('story'),
         c: () => st.addNote('comment'),
         '=': () => st.zoomText(1),
         '+': () => st.zoomText(1),
         '-': () => st.zoomText(-1),
-        escape: () => (st.openRefine(null), st.selectClip(null)),
+        escape: () => {
+          if (st.editingWord) return st.cancelWordEdit()
+          if (st.editMode) return st.toggleTranscriptEdit()
+          st.openRefine(null)
+          st.selectClip(null)
+        },
         arrowleft: () => st.refine && st.nudge(e.shiftKey ? -10 : -1),
         arrowright: () => st.refine && st.nudge(e.shiftKey ? 10 : 1),
       }
@@ -93,6 +99,7 @@ export function App() {
   const toastMsg = useStore((s) => s.toastMsg)
   const hasSel = useStore((s) => !!s.sourceSel)
   const canUndo = useStore((s) => s.past.length > 0)
+  const canRedo = useStore((s) => s.future.length > 0)
   const st = useStore.getState()
   const fileInput = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -124,14 +131,14 @@ export function App() {
           </button>
         </nav>
         <div className="topbar-tools">
-          <ToolButton icon="textShrink" label="Shrink Text" shortcut="−" onClick={() => st.zoomText(-1)} />
-          <ToolButton icon="textGrow" label="Zoom Text" shortcut="+" onClick={() => st.zoomText(1)} />
+          <ToolButton icon="textShrink" label="Shrink Text" short="Text −" shortcut="−" onClick={() => st.zoomText(-1)} />
+          <ToolButton icon="textGrow" label="Zoom Text" short="Text +" shortcut="+" onClick={() => st.zoomText(1)} />
           <span className="sep" />
-          <ToolButton icon="newEdit" label="New Edit" shortcut="Cmd+N" onClick={st.newEdit} />
-          <ToolButton icon="saveEdit" label="Save Edit" shortcut="Cmd+S" onClick={st.save} />
-          <button className="undo" disabled={!canUndo} onClick={st.undo} title="Undo (Cmd+Z)">
-            Undo
-          </button>
+          <ToolButton icon="newEdit" label="New Edit" short="New" shortcut="Cmd+N" onClick={st.newEdit} />
+          <ToolButton icon="saveEdit" label="Save Edit" short="Save" shortcut="Cmd+S" onClick={st.save} />
+          <span className="sep" />
+          <ToolButton icon="undo" label="Undo" short="Undo" shortcut="Cmd+Z" onClick={st.undo} disabled={!canUndo} />
+          <ToolButton icon="redo" label="Redo" short="Redo" shortcut="Cmd+Shift+Z" onClick={st.redo} disabled={!canRedo} />
         </div>
       </header>
 

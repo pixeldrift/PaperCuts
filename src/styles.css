@@ -1122,3 +1122,125 @@ body.trimming * {
     font-size: 16px; /* stops iOS zooming into the field */
   }
 }
+
+/* ───────── labelled tool buttons ───────── */
+.tool.labeled {
+  width: auto;
+  min-width: 46px;
+  height: 50px;
+  padding: 5px 6px 3px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.tool-label {
+  font-size: 10px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  color: var(--muted);
+  transition: color 0.12s;
+}
+.tool.labeled:not(:disabled):hover .tool-label,
+.tool.labeled[data-active] .tool-label {
+  color: inherit;
+}
+.tool.labeled[data-tone='danger']:not(:disabled):hover .tool-label {
+  color: var(--danger);
+}
+.toolbar .tool-group {
+  gap: 2px;
+}
+.source-tools .tool.labeled {
+  height: 44px;
+  min-width: 42px;
+}
+.topbar-tools {
+  gap: 2px;
+}
+.topbar-tools .tool.labeled {
+  background: transparent;
+  border-color: transparent;
+}
+.topbar-tools .tool.labeled:not(:disabled):hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+@media (max-width: 720px) {
+  /* phone: toolbars keep labels (they scroll sideways); the top bar goes icon-only */
+  .tool.labeled {
+    width: auto;
+    height: 52px;
+    min-width: 48px;
+  }
+  .topbar-tools .tool.labeled {
+    width: 38px;
+    min-width: 0;
+    height: 38px;
+    padding: 0;
+  }
+  .topbar-tools .tool-label {
+    display: none;
+  }
+  .topbar-tools .sep {
+    display: none;
+  }
+  .topbar-tools .tool.labeled:nth-child(-n + 2) {
+    display: none; /* text size lives in the pane toolbars on phones */
+  }
+}
+
+/* ───────── transcript editing ───────── */
+.edit-hint {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 14px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-line);
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.edit-hint b {
+  flex: none;
+  color: var(--accent-hi);
+  font-weight: 600;
+}
+.edit-hint span {
+  color: var(--muted);
+}
+.transcript[data-edit] span[data-w]:not(.editing-word),
+.clip-text[data-edit] span[data-wi]:not(.ctx):not(.editing-word) {
+  cursor: text;
+  border-radius: 3px;
+}
+.transcript[data-edit] span[data-w]:not(.editing-word):hover,
+.clip-text[data-edit] span[data-wi]:not(.ctx):not(.editing-word):hover {
+  background: var(--panel-3);
+  box-shadow: 0 1px 0 var(--accent);
+}
+.word-input {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel);
+  border: 0;
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+  outline: 1.5px solid var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  min-width: 1.5ch;
+  max-width: 100%;
+}
+@media (max-width: 720px) {
+  .word-input {
+    font-size: 16px; /* stops iOS zooming into the field */
+  }
+  .edit-hint {
+    flex-direction: column;
+    gap: 2px;
+  }
+}

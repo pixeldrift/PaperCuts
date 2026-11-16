@@ -60,6 +60,23 @@ export async function saveSource(src: Source, file?: Blob) {
   })
 }
 
+/** Save edited transcript text for an existing source, keeping its stored media link. */
+export async function saveSourceText(src: Source) {
+  const db = await open()
+  await new Promise<void>((resolve, reject) => {
+    const t = db.transaction('sources', 'readwrite')
+    const store = t.objectStore('sources')
+    const get = store.get(src.id)
+    get.onsuccess = () => {
+      const existing = get.result as StoredSource | undefined
+      const { mediaUrl: _drop, ...rest } = src
+      store.put({ ...rest, hasMedia: existing?.hasMedia ?? false } satisfies StoredSource)
+    }
+    t.oncomplete = () => resolve()
+    t.onerror = () => reject(t.error)
+  })
+}
+
 export async function deleteSource(id: string) {
   await tx(['sources', 'media'], 'readwrite', (t) => {
     t.objectStore('sources').delete(id)

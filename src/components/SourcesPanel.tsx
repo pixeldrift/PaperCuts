@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Avatar, Icon } from '../icons'
+import { Avatar } from '../icons'
+import { ToolButton } from './Toolbar'
 import { openImportPicker, runImport } from '../lib/runImport'
 import { fmt, useStore } from '../store'
 
@@ -62,12 +63,8 @@ export function SourcesPanel() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <button className="tool sm" title="Import Source (Cmd+I)" onClick={openImportPicker}>
-          <Icon name="importSource" size={18} />
-        </button>
-        <button className="tool sm" title="Remove Source" onClick={removeSource} data-tone="danger">
-          <Icon name="removeSource" size={18} />
-        </button>
+        <ToolButton icon="importSource" label="Import Source" short="Import" shortcut="Cmd+I" onClick={openImportPicker} />
+        <ToolButton icon="removeSource" label="Remove Source" short="Remove" onClick={removeSource} tone="danger" />
       </div>
       <div className="table-wrap">
         <table className="sources-table">

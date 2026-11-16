@@ -87,6 +87,19 @@ function parseJson(text: string): RawWord[] {
   return out.map((w) => (looksLikeMs ? w : { ...w, s: Math.round(w.s * 1000), e: Math.round(w.e * 1000) }))
 }
 
+/** [first, last] word index of each sentence (a sentence ends on . ! ? or the final word). */
+export function sentenceRanges(words: { t: string }[]): [number, number][] {
+  const out: [number, number][] = []
+  let start = 0
+  words.forEach((w, i) => {
+    if (END_PUNCT.test(w.t) || i === words.length - 1) {
+      out.push([start, i])
+      start = i + 1
+    }
+  })
+  return out
+}
+
 /** Group raw words into paragraphs (long pauses / sentence ends) and sentences. */
 function structure(raw: RawWord[]): Pick<Source, 'words' | 'sentences'> {
   const words: Word[] = []
