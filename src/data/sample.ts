@@ -1,0 +1,109 @@
+import type { Source, Clip } from '../types'
+
+/** Deterministic PRNG so sample data is stable between reloads. */
+function mulberry32(seed: number) {
+  return () => {
+    seed |= 0
+    seed = (seed + 0x6d2b79f5) | 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+const CORPUS = [
+  'When we first started the project nobody believed it would ever get finished.',
+  'I remember walking into the old print shop and smelling ink and dust everywhere.',
+  'The hardest part was not the filming, it was deciding what to leave out.',
+  'Every story has a shape, and you only find it once you stop trying to force it.',
+  'We had hundreds of hours of tape and no clear idea where to begin.',
+  'Somebody suggested we just read the transcripts like a book and underline the good parts.',
+  'That changed everything for us, because suddenly the edit felt like writing.',
+  'You can hear the hesitation in her voice right before she tells the real story.',
+  'I think people underestimate how much a pause can say about a person.',
+  'The town had changed so much that she barely recognised the main street.',
+  'He kept every letter in a shoebox under the bed for almost forty years.',
+  'We argued for a week about whether the ending should be hopeful or honest.',
+  'In the end the audience decided that for us, and they were right.',
+  'There is a moment in the second interview where everything suddenly clicks.',
+  'You do not realise how much you remember until somebody asks the right question.',
+  'The crew was tiny, just two cameras, one microphone and a lot of coffee.',
+  'It rained on the first day of shooting and it never really stopped after that.',
+  'I would not change a single frame, even the ones that went out of focus.',
+  'People talk differently when they forget the camera is there.',
+  'The archive footage gave us a sense of scale that no interview ever could.',
+  'We cut the whole opening three times before it finally felt right.',
+  'She laughed at the memory and then went quiet for a long time.',
+  'The simplest version of the story was always the strongest one.',
+  'Looking back, the mistakes are what make the film feel human.',
+  'He told us the same story twice and the details were completely different.',
+  'Rough cuts are supposed to be rough, that is the whole point of them.',
+  'You find the film in the edit, not in the script.',
+  'Nobody ever remembers the shots that did not make it into the final version.',
+  'We kept coming back to the same three minutes of footage again and again.',
+  'It felt less like making a documentary and more like uncovering something buried.',
+]
+
+const SPEC: { id: string; title: string; date: string; seed: number; offset: number }[] = [
+  { id: 'src-john', title: 'John Doe', date: 'Nov 2, 2016', seed: 11, offset: 0 },
+  { id: 'src-jane', title: 'Jane Smith', date: 'Dec 15, 2016', seed: 23, offset: 7 },
+  { id: 'src-tom', title: 'Tom Taylor', date: 'Mar 22, 2017', seed: 37, offset: 14 },
+  { id: 'src-sarah', title: 'Sarah Baker', date: 'July 18, 2017', seed: 41, offset: 21 },
+]
+
+const SENTENCES_PER_SOURCE = 72
+const SENTENCES_PER_PARAGRAPH = 4
+
+function build(spec: (typeof SPEC)[number]): Source {
+  const rand = mulberry32(spec.seed)
+  const words: Source['words'] = []
+  const sentences: Source['sentences'] = []
+  let t = 1200 + Math.floor(rand() * 2000)
+  let para = 0
+
+  for (let i = 0; i < SENTENCES_PER_SOURCE; i++) {
+    const text = CORPUS[(spec.offset + i * 3 + Math.floor(i / CORPUS.length)) % CORPUS.length]
+    const tokens = text.split(' ')
+    const first = words.length
+    for (const tok of tokens) {
+      const dur = 170 + tok.length * 42 + Math.floor(rand() * 60)
+      words.push({ t: tok, s: Math.round(t), e: Math.round(t + dur), p: para })
+      t += dur + 35
+    }
+    sentences.push([first, words.length - 1])
+    const endOfPara = (i + 1) % SENTENCES_PER_PARAGRAPH === 0
+    if (endOfPara) para++
+    t += endOfPara ? 1400 : 550
+  }
+
+  return {
+    id: spec.id,
+    title: spec.title,
+    date: spec.date,
+    duration: Math.round(t + 2000),
+    words,
+    sentences,
+  }
+}
+
+export const SAMPLE_SOURCES: Source[] = SPEC.map(build)
+
+/** A short starter paper edit so the UI isn't empty on first load. */
+export function sampleClips(): Clip[] {
+  const pick = (id: string, from: number, to: number): Clip => {
+    const src = SAMPLE_SOURCES.find((s) => s.id === id)!
+    return {
+      id: `seed-${id}-${from}`,
+      sourceId: id,
+      inMs: src.words[src.sentences[from][0]].s,
+      outMs: src.words[src.sentences[to][1]].e,
+      notes: [],
+    }
+  }
+  return [
+    pick('src-john', 0, 1),
+    pick('src-sarah', 4, 6),
+    pick('src-tom', 2, 2),
+    pick('src-tom', 9, 10),
+  ]
+}

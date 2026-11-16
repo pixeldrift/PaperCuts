@@ -1,0 +1,92 @@
+import { useMemo, useState } from 'react'
+import { Avatar, Icon } from '../icons'
+import { fmt, useStore } from '../store'
+
+type SortKey = 'title' | 'duration' | 'date'
+
+export function SourcesPanel() {
+  const sources = useStore((s) => s.sources)
+  const selected = useStore((s) => s.selectedSourceId)
+  const { selectSource, removeSource, toast, setSourcesOpen } = useStore.getState()
+  const [query, setQuery] = useState('')
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null)
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const list = sources.filter((s) => s.title.toLowerCase().includes(q))
+    if (!sort) return list
+    return [...list].sort((a, b) => {
+      const av = sort.key === 'date' ? Date.parse(a.date) : sort.key === 'duration' ? a.duration : a.title
+      const bv = sort.key === 'date' ? Date.parse(b.date) : sort.key === 'duration' ? b.duration : b.title
+      return (av < bv ? -1 : av > bv ? 1 : 0) * sort.dir
+    })
+  }, [sources, query, sort])
+
+  const th = (key: SortKey, label: string) => (
+    <th>
+      <button
+        className="th-btn"
+        onClick={() => setSort((p) => (p?.key === key ? { key, dir: (p.dir * -1) as 1 | -1 } : { key, dir: 1 }))}
+      >
+        {label}
+        {sort?.key === key && <span aria-hidden>{sort.dir === 1 ? ' ▲' : ' ▼'}</span>}
+      </button>
+    </th>
+  )
+
+  return (
+    <section className="pane sources" aria-label="Sources">
+      <header className="pane-head">
+        <h2>Sources</h2>
+        <button className="drawer-close" onClick={() => setSourcesOpen(false)} aria-label="Close sources">
+          ✕
+        </button>
+      </header>
+      <div className="source-tools">
+        <input
+          className="search"
+          type="search"
+          placeholder="Search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button className="tool sm" title="Import Source (Cmd+I)" onClick={() => toast('Import isn’t wired up yet — drop-in media comes next')}>
+          <Icon name="importSource" size={18} />
+        </button>
+        <button className="tool sm" title="Remove Source" onClick={removeSource} data-tone="danger">
+          <Icon name="removeSource" size={18} />
+        </button>
+      </div>
+      <div className="table-wrap">
+        <table className="sources-table">
+          <thead>
+            <tr>
+              <th className="thumb-col">Thumb</th>
+              {th('title', 'Title')}
+              {th('duration', 'Duration')}
+              {th('date', 'Date')}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => (
+              <tr
+                key={s.id}
+                data-selected={s.id === selected || undefined}
+                onClick={() => selectSource(s.id)}
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && selectSource(s.id)}
+              >
+                <td className="thumb-col">
+                  <Avatar size={34} />
+                </td>
+                <td>{s.title}</td>
+                <td className="num">{fmt(s.duration)}</td>
+                <td>{s.date}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
