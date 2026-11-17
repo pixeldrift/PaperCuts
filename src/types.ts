@@ -23,12 +23,31 @@ export interface Source {
   filename?: string
   /** Where the transcript came from. */
   transcriptFormat?: 'srt' | 'vtt' | 'json' | 'auto'
-  /** Sources sharing a syncId are the same take from different angles (multicam). */
-  syncId?: string
+  /**
+   * Further camera angles of the same take, synced to this source's timeline and sharing its
+   * transcript. The fields above (camera, shotType, filename, mediaUrl, recordedAt) describe the
+   * primary angle.
+   */
+  extraAngles?: Angle[]
   words: Word[]
   /** [firstWordIndex, lastWordIndex] per sentence. */
   sentences: [number, number][]
 }
+
+/** One camera's footage of a take. */
+export interface Angle {
+  id: string
+  camera: string
+  shotType?: string
+  filename?: string
+  recordedAt?: string
+  mediaUrl?: string
+  /** How much later this footage starts than the shared timeline (media time = timeline time − offset). */
+  offsetMs: number
+}
+
+/** Id of a source's primary angle (the one its transcript was timed against). */
+export const PRIMARY_ANGLE = 'main'
 
 export interface Note {
   id: string
@@ -43,6 +62,8 @@ export interface Clip {
   inMs: number
   outMs: number
   notes: Note[]
+  /** Which angle to show for this clip. Absent = the source's primary angle. */
+  angleId?: string
 }
 
 export type Tab = 'transcripts' | 'edits'

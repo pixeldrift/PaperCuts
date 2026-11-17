@@ -1,34 +1,50 @@
 import { SAMPLE_SOURCES, sampleClips } from '../data/sample'
 import { useStore } from '../store'
-import type { Clip } from '../types'
-import { kvGet, kvSet, loadSources, saveSourceText, type StoredEdit } from './db'
-import type { Source } from '../types'
+import type { Clip, Source } from '../types'
+import { getMedia, kvGet, kvSet, loadSources, mediaKey, saveSourceRecord, toStored, type StoredSource, type StoredEdit } from './db'
 
-type SampleText = Record<string, Pick<Source, 'words' | 'sentences'>>
+/** Edits to sample sources (their transcripts are regenerated from code, so changes are stored as overrides). */
+type Overrides = Record<string, Partial<StoredSource>>
 
 let started: Promise<void> | null = null
 
-/** Load sources + the saved edit from IndexedDB, then autosave edit changes. */
+/** Load sources + the saved edit from IndexedDB, then autosave changes. */
 export function initPersistence() {
   started ??= run()
   return started
 }
 
+/** Stored record → live source, recreating blob URLs for every angle that has a stored file. */
+async function realize(stored: StoredSource): Promise<Source> {
+  const url = async (key: string, has: boolean) => {
+    if (!has) return undefined
+    const blob = await getMedia(key)
+    return blob ? URL.createObjectURL(blob) : undefined
+  }
+  const { hasMedia, extraAngles, ...rest } = stored
+  const mediaUrl = await url(mediaKey(stored.id), hasMedia)
+  const extras = await Promise.all(
+    (extraAngles ?? []).map(async ({ hasMedia: has, ...a }) => ({ ...a, mediaUrl: await url(mediaKey(stored.id, a.id), has) })),
+  )
+  return { ...rest, mediaUrl, extraAngles: extras.length ? extras : undefined }
+}
+
 async function run() {
   try {
-    const [stored, edit, removed, sampleText] = await Promise.all([
+    const [stored, edit, removed, legacyText, overrides] = await Promise.all([
       loadSources(),
       kvGet<StoredEdit>('edit'),
       kvGet<string[]>('removedSamples'),
-      kvGet<SampleText>('sampleText'),
+      kvGet<Overrides>('sampleText'), // v1: transcript-only overrides
+      kvGet<Overrides>('sampleOverrides'),
     ])
     const hidden = new Set(removed ?? [])
-    const imported = stored.map(({ src, blob }) => {
-      const { hasMedia: _h, ...rest } = src
-      return { ...rest, mediaUrl: blob ? URL.createObjectURL(blob) : undefined }
-    })
-    // sample transcripts are regenerated from code, so edits to them are stored as overrides
-    const samples = SAMPLE_SOURCES.filter((s) => !hidden.has(s.id)).map((s) => (sampleText?.[s.id] ? { ...s, ...sampleText[s.id] } : s))
+    const over: Overrides = { ...legacyText, ...overrides }
+
+    const imported = await Promise.all(stored.map(realize))
+    const samples = await Promise.all(
+      SAMPLE_SOURCES.filter((s) => !hidden.has(s.id)).map((s) => (over[s.id] ? realize({ ...toStored(s), ...over[s.id] }) : s)),
+    )
     let sources = [...samples, ...imported]
     if (!sources.length) sources = [...SAMPLE_SOURCES]
 
@@ -57,10 +73,10 @@ async function run() {
     useStore.setState({ clips: sampleClips(), hydrated: true })
   }
 
-  // autosave edited transcript text (debounced)
+  // autosave source changes (transcript text, meta, angles) — debounced
   const dirty = new Set<string>()
-  let textTimer: ReturnType<typeof setTimeout> | undefined
-  const flushText = async () => {
+  let sourceTimer: ReturnType<typeof setTimeout> | undefined
+  const flushSources = async () => {
     const ids = [...dirty]
     dirty.clear()
     for (const id of ids) {
@@ -68,13 +84,13 @@ async function run() {
       if (!src) continue
       try {
         if (SAMPLE_SOURCES.some((x) => x.id === id)) {
-          const all = (await kvGet<SampleText>('sampleText')) ?? {}
-          await kvSet('sampleText', { ...all, [id]: { words: src.words, sentences: src.sentences } })
+          const all = (await kvGet<Overrides>('sampleOverrides')) ?? {}
+          await kvSet('sampleOverrides', { ...all, [id]: toStored(src) })
         } else {
-          await saveSourceText(src)
+          await saveSourceRecord(src)
         }
       } catch {
-        useStore.getState().toast('Couldn’t save transcript changes (storage unavailable)')
+        useStore.getState().toast('Couldn’t save changes (storage unavailable)')
       }
     }
   }
@@ -82,11 +98,11 @@ async function run() {
     if (s.sources === prev.sources) return
     for (const src of s.sources) {
       const old = prev.sources.find((x) => x.id === src.id)
-      if (old && old.words !== src.words) dirty.add(src.id)
+      if (old && old !== src) dirty.add(src.id)
     }
     if (!dirty.size) return
-    clearTimeout(textTimer)
-    textTimer = setTimeout(() => void flushText(), 400)
+    clearTimeout(sourceTimer)
+    sourceTimer = setTimeout(() => void flushSources(), 400)
   })
 
   // autosave the edit (debounced)

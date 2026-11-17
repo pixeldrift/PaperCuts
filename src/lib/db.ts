@@ -1,18 +1,33 @@
-import type { Clip, Source } from '../types'
+import { PRIMARY_ANGLE, type Angle, type Clip, type Source } from '../types'
 
 /**
  * Tiny IndexedDB wrapper (no dependencies).
- *   sources: Source metadata + transcript, keyed by id (no mediaUrl — blob URLs don't survive reloads)
- *   media:   the original File/Blob, keyed by source id
- *   kv:      small settings, e.g. the current edit
+ *   sources: imported sources' metadata + shared transcript, keyed by id (no blob URLs —
+ *            those don't survive reloads; `hasMedia` flags say which angles have a stored file)
+ *   media:   the original File/Blob per angle: key = sourceId (primary) or `sourceId::angleId`
+ *   kv:      small settings — the current edit, sample-source overrides, removed samples…
  */
 const NAME = 'papercuts'
 const VERSION = 1
 
-export type StoredSource = Omit<Source, 'mediaUrl'> & { hasMedia: boolean }
+export type StoredAngle = Omit<Angle, 'mediaUrl'> & { hasMedia: boolean }
+export type StoredSource = Omit<Source, 'mediaUrl' | 'extraAngles'> & { hasMedia: boolean; extraAngles?: StoredAngle[] }
 export interface StoredEdit {
   name: string
   clips: Clip[]
+}
+
+export const mediaKey = (sourceId: string, angleId?: string) =>
+  angleId && angleId !== PRIMARY_ANGLE ? `${sourceId}::${angleId}` : sourceId
+
+/** Strip session-only blob URLs, noting which angles have stored media. */
+export function toStored(src: Source): StoredSource {
+  const { mediaUrl, extraAngles, ...rest } = src
+  return {
+    ...rest,
+    hasMedia: !!mediaUrl,
+    extraAngles: extraAngles?.map(({ mediaUrl: u, ...a }) => ({ ...a, hasMedia: !!u })),
+  }
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null
@@ -51,58 +66,45 @@ export const kvGet = <T>(key: string) => tx<T>('kv', 'readonly', (t) => t.object
 export const kvSet = (key: string, value: unknown) =>
   tx('kv', 'readwrite', (t) => void t.objectStore('kv').put(value, key))
 
+/** Save an imported source's record (and, if given, its primary media file). */
 export async function saveSource(src: Source, file?: Blob) {
-  const { mediaUrl: _drop, ...rest } = src
-  const record: StoredSource = { ...rest, hasMedia: !!file }
   await tx(['sources', 'media'], 'readwrite', (t) => {
-    t.objectStore('sources').put(record)
+    t.objectStore('sources').put(toStored(src))
     if (file) t.objectStore('media').put(file, src.id)
   })
 }
 
-/** Save edited transcript text for an existing source, keeping its stored media link. */
-export async function saveSourceText(src: Source) {
-  const db = await open()
-  await new Promise<void>((resolve, reject) => {
-    const t = db.transaction('sources', 'readwrite')
-    const store = t.objectStore('sources')
-    const get = store.get(src.id)
-    get.onsuccess = () => {
-      const existing = get.result as StoredSource | undefined
-      const { mediaUrl: _drop, ...rest } = src
-      store.put({ ...rest, hasMedia: existing?.hasMedia ?? false } satisfies StoredSource)
-    }
-    t.oncomplete = () => resolve()
-    t.onerror = () => reject(t.error)
+/** Update a record without touching any media (transcript text, meta, angle list). */
+export async function saveSourceRecord(src: Source) {
+  await tx('sources', 'readwrite', (t) => void t.objectStore('sources').put(toStored(src)))
+}
+
+export const saveMedia = (key: string, blob: Blob) =>
+  tx('media', 'readwrite', (t) => void t.objectStore('media').put(blob, key))
+
+export const getMedia = (key: string) => tx<Blob | undefined>('media', 'readonly', (t) => t.objectStore('media').get(key))
+
+/** Re-key a stored media file (used when angles are synced into / split out of a source). */
+export async function moveMedia(from: string, to: string) {
+  const blob = await getMedia(from)
+  if (!blob) return
+  await tx('media', 'readwrite', (t) => {
+    t.objectStore('media').put(blob, to)
+    t.objectStore('media').delete(from)
   })
 }
 
+/** Remove a source record and every angle's media (`id` and `id::*`). */
 export async function deleteSource(id: string) {
   await tx(['sources', 'media'], 'readwrite', (t) => {
     t.objectStore('sources').delete(id)
     t.objectStore('media').delete(id)
+    t.objectStore('media').delete(IDBKeyRange.bound(`${id}::`, `${id}::￿`))
   })
 }
 
-export async function loadSources(): Promise<{ src: StoredSource; blob?: Blob }[]> {
-  const db = await open()
-  return new Promise((resolve, reject) => {
-    const t = db.transaction(['sources', 'media'], 'readonly')
-    const all = t.objectStore('sources').getAll()
-    const media = t.objectStore('media')
-    const out: { src: StoredSource; blob?: Blob }[] = []
-    all.onsuccess = () => {
-      for (const src of all.result as StoredSource[]) {
-        const entry: { src: StoredSource; blob?: Blob } = { src }
-        out.push(entry)
-        if (src.hasMedia) {
-          media.get(src.id).onsuccess = (e) => {
-            entry.blob = (e.target as IDBRequest<Blob | undefined>).result
-          }
-        }
-      }
-    }
-    t.oncomplete = () => resolve(out)
-    t.onerror = () => reject(t.error)
-  })
+export const deleteMedia = (key: string) => tx('media', 'readwrite', (t) => void t.objectStore('media').delete(key))
+
+export async function loadSources(): Promise<StoredSource[]> {
+  return (await tx<StoredSource[]>('sources', 'readonly', (t) => t.objectStore('sources').getAll())) ?? []
 }

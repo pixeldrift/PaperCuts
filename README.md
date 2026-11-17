@@ -39,11 +39,22 @@ Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
 ## Trimming
 Select a clip to reveal faded words of source context around it. Drag the left/right handle over the text to move the in/out point (one undo step per drag). A plain click on a handle opens **Refine** for ±1 frame (Shift = ±10; also ←/→ while open).
 
+## Multicam
+Footage of the same take from different cameras is **one clip with several angles and one shared transcript** — you cut from the transcript once and choose the angle per clip.
+
+- **Sync on import:** drop several videos with one transcript (`.srt` / `.vtt` / `.json`) and they become angles A, B, C… of a single clip. Videos pair with a transcript by name when you import several transcripts.
+- **Sync later:** *Select* → tick the clips that are the same take → *Sync as multicam*. The clip with the most transcript text keeps its transcript; clips already in the edit are re-pointed to the matching angle. *Unsync* (in Clip info) splits angles back out.
+- **Choose the angle:** every clip in the Paper Edit has angle chips (A · B · GoPro); with a clip selected, **1–9** picks its Nth angle. The Source pane has a *Preview angle* switch, and the timeline shows each clip's camera. Playback uses the chosen angle's video.
+- **Sync offsets:** each extra angle has an offset (how much later that camera started) so media lines up with the shared timeline; set it in Clip info (±1 frame buttons).
+- In the Sources list, *Combine synced clips* (default) shows one row per clip with angles under a twirl-down; turn it off to list every angle as its own row.
+
+## Clip info (edit metadata)
+**Double-click** a clip's data (anything except the thumbnail/title), or **press and hold** a row (or right-click, or press `I`), to edit its title, date, and per-angle camera, shot type, filename, time recorded and sync offset. Double-click the thumbnail/title still opens the clip.
+
 ## Sources list
-- **Double-tap / double-click** a source to open it — on a phone that switches to the Source tab. A single tap just selects it.
+- **Double-tap / double-click** the thumbnail or title to open a clip — on a phone that switches to the Source tab. A single tap just selects it.
 - **Sortable headers:** each header is a button with stacked ▲▼ arrows that are faded until the column is the sort column, then the active direction lights up. Click cycles ascending → descending → off.
-- **Options** (next to Remove): show/hide columns — Thumbnail, Title, Duration, Date, Time recorded, Camera, Shot type, Filename, Transcript (✓ + format), Multicam — and **Combine synced clips**, which groups multicam angles into one row with a twirl-down to see each angle. Settings are remembered. Title/thumbnail stay pinned while the table scrolls sideways.
-- Sources sharing a `syncId` are treated as the same take from different angles (sample data: Jane Smith on A, B and GoPro).
+- **Options** (next to Remove): show/hide columns — Thumbnail, Title, Duration, Date, Time recorded, Camera, Shot type, Filename, Transcript (✓ + format), Multicam. Settings are remembered. Title/thumbnail stay pinned while the table scrolls sideways.
 
 ## Panes & timelines
 Each pane has its own colour, icon and small-caps label (Source = violet, Paper Edit = teal, Timeline = amber), and the same colours mark the active top tab / phone nav tab. The paper edit has a mini timeline strip (tap or drag to scrub) and the Timeline view has a ruler with tick marks and times — tap or drag the ruler, or tap a clip, to move the current time. Timeline clips show a thumbnail, the source name and a wrapped, truncated preview of the clip's text; clip colours are per source.

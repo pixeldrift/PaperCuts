@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '../icons'
+import { angleList, getAngle } from '../lib/angles'
+import { AngleChips } from './AngleChips'
 import { EditHint } from './EditHint'
 import { WordInput } from './WordInput'
 import { fmt, fmtShort, layout, locate, useStore } from '../store'
@@ -109,7 +111,7 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
   const editMode = useStore((s) => s.editMode)
   const editWordIdx = useStore((s) => (s.editingWord?.sourceId === clip.sourceId ? s.editingWord.index : -1))
   const editing = useStore((s) => (s.editingNote?.clipId === clip.id ? s.editingNote : null))
-  const { selectClip, seekEdit, removeClip, openRefine, trimDrag, endTrimDrag, editNote, deleteNote } = useStore.getState()
+  const { selectClip, seekEdit, removeClip, openRefine, trimDrag, endTrimDrag, editNote, deleteNote, setClipAngle } = useStore.getState()
   const blockRef = useRef<HTMLElement>(null)
   const drag = useRef<{ which: 'in' | 'out'; x: number; y: number; moved: boolean } | null>(null)
 
@@ -190,6 +192,13 @@ function ClipBlock({ clip, selected, active }: { clip: Clip; selected: boolean; 
       <div className="clip-meta">
         <span className="clip-speaker">{source.title}</span>
         <Avatar size={36} />
+        <AngleChips
+          compact
+          angles={angleList(source)}
+          active={getAngle(source, clip.angleId).id}
+          onPick={(id) => (selectClip(clip.id), setClipAngle(clip.id, id))}
+          label="Angle for this clip"
+        />
         <span className="clip-time">
           {fmtShort(clip.inMs)} –<br />
           {fmtShort(clip.outMs)}

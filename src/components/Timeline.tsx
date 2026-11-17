@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react'
 import { Avatar, Icon } from '../icons'
+import { angleList, getAngle } from '../lib/angles'
 import { sourceColor } from '../lib/colors'
 import { fmt, layout, locate, useStore } from '../store'
 import type { Clip, Source } from '../types'
@@ -143,6 +144,7 @@ export function Timeline() {
                   <span className="tclip-head">
                     <Avatar size={20} />
                     <span className="tclip-name">{src?.title}</span>
+                    {src && angleList(src).length > 1 && <span className="tclip-cam" title="Camera angle">{getAngle(src, c.angleId).camera}</span>}
                     {c.notes.length > 0 && (
                       <span className="tclip-notes" title={`${c.notes.length} note${c.notes.length > 1 ? 's' : ''}`}>
                         {c.notes.length}

@@ -2016,3 +2016,261 @@ body.trimming * {
 .sources-table tbody tr[data-child][data-selected] td.sticky {
   background: color-mix(in srgb, var(--accent) 22%, var(--panel));
 }
+
+/* ═════════ keep the OS from blurring our top bar ═════════
+   The OS only blurs page content that sits under (or scrolls beneath) its translucent
+   toolbar / status bar. The page never extends under it (no viewport-fit=cover) and the
+   document itself never scrolls — only the panes inside do. */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+/* ═════════ multicam: angle chips, badges ═════════ */
+.angle-chips {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 2px 0;
+  flex-wrap: wrap;
+}
+.angle-label {
+  font-size: 11px;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.angle-chips button {
+  min-width: 30px;
+  height: 26px;
+  padding: 0 9px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.angle-chips button:hover {
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+.angle-chips button[data-on] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.angle-chips[data-compact] {
+  padding: 0;
+  gap: 3px;
+}
+.angle-chips[data-compact] button {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  border-radius: 6px;
+}
+.clip-meta .angle-chips {
+  max-width: 84px;
+}
+.screen-angle {
+  font-size: 13px;
+  color: var(--accent-hi);
+  letter-spacing: 0.04em;
+}
+.screen-badge {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  font-size: 12px;
+  color: #fff;
+}
+.tclip-cam {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+.chips {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.cell-angle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* select mode (sync cameras) */
+.select-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 7px 10px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-line);
+  font-size: 12.5px;
+}
+.select-bar span {
+  flex: 1 1 140px;
+}
+.select-col {
+  width: 36px;
+  text-align: center;
+  padding: 0 6px !important;
+}
+.select-col input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--accent);
+}
+.sources-table tbody tr[data-marked] td {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+}
+.sources-table tbody tr[data-marked] td.sticky {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+}
+.sources-table tbody tr {
+  -webkit-touch-callout: none; /* no iOS callout on press-and-hold */
+}
+
+/* ═════════ clip info dialog ═════════ */
+.modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(8, 8, 12, 0.62);
+}
+.modal {
+  width: min(520px, 100%);
+  max-height: min(720px, 100%);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1.5px solid var(--accent-line);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.65);
+  overflow: hidden;
+}
+.modal-head,
+.modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 16px;
+  background: var(--panel-3);
+}
+.modal-head {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.modal-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+.modal-foot {
+  border-top: 1px solid var(--line);
+}
+.modal-foot .spacer {
+  flex: 1;
+}
+.modal-body {
+  padding: 14px 16px 6px;
+  overflow-y: auto;
+}
+.modal-note {
+  margin: 8px 0 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+}
+.form-grid label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.form-grid label.wide {
+  grid-column: 1 / -1;
+}
+.form-grid small {
+  font-size: 11px;
+}
+.form-grid input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.form-grid input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.angle-card {
+  margin: 0 0 12px;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  display: grid;
+  gap: 10px;
+}
+.angle-card legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.angle-card legend small {
+  font-weight: 400;
+  color: var(--muted);
+}
+.offset-row {
+  display: flex;
+  gap: 5px;
+}
+.fbtn.danger {
+  color: var(--danger);
+}
+.fbtn.danger:not(:disabled):hover {
+  border-color: var(--danger);
+  background: rgba(255, 107, 125, 0.12);
+}
+@media (max-width: 520px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  .form-grid input,
+  .search {
+    font-size: 16px; /* stops iOS zooming into fields */
+  }
+}

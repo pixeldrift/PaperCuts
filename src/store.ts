@@ -1,7 +1,8 @@
 import { create } from 'zustand'
-import type { Clip, Note, Pane, Source, Tab, Word } from './types'
+import { PRIMARY_ANGLE, type Angle, type Clip, type Note, type Pane, type Source, type Tab, type Word } from './types'
 import { SAMPLE_SOURCES } from './data/sample'
-import { deleteSource, kvGet, kvSet } from './lib/db'
+import { angleList, getAngle, nextCamera } from './lib/angles'
+import { deleteSource, kvGet, kvSet, mediaKey, moveMedia, saveSource } from './lib/db'
 import { sentenceRanges } from './lib/transcript'
 import { applyReplacement, findMatches, replaceWords, retext, tokenize, toggleBreakAfter } from './lib/textdiff'
 
@@ -133,6 +134,9 @@ interface State {
   past: Snapshot[]
   future: Snapshot[]
 
+  /** Which angle the Source pane is previewing, per source (absent = primary). */
+  sourceAngle: Record<string, string>
+
   mode: 'source' | 'edit'
   playing: boolean
   sourceT: number
@@ -201,6 +205,17 @@ interface State {
   save: () => void
   removeSource: () => void
   addSources: (sources: Source[]) => void
+  setSourceAngle: (sourceId: string, angleId: string) => void
+  /** Choose which angle a clip in the edit uses. */
+  setClipAngle: (clipId: string, angleId: string) => void
+  /** Pick the selected clip's Nth angle (1 = primary) — the 1-9 shortcuts. */
+  setAngleByNumber: (n: number) => void
+  /** Edit a source's metadata (title, date, camera info, sync offsets…). */
+  updateSource: (sourceId: string, update: (s: Source) => Source) => void
+  /** Merge sources that are the same take from different cameras into one multicam source. */
+  syncSources: (ids: string[]) => void
+  /** Split an angle (or all extra angles) back out into separate sources. */
+  unsyncAngle: (sourceId: string, angleId: string | 'all') => void
 }
 
 /** Clips as they were when the current trim-drag began (for one undo step). */
@@ -272,6 +287,7 @@ export const useStore = create<State>((set, get) => {
     past: [],
     future: [],
 
+    sourceAngle: {},
     mode: 'source',
     playing: false,
     sourceT: 0,
@@ -315,13 +331,15 @@ export const useStore = create<State>((set, get) => {
       const s = get()
       if (!s.playing) return
       if (s.mode === 'source') {
-        if (currentSource().mediaUrl) return // driven by the <video> in Viewer
+        const cur = currentSource()
+        if (getAngle(cur, s.sourceAngle[cur.id]).mediaUrl) return // driven by the <video> in Viewer
         const end = currentSource().duration
         const t = s.sourceT + dt
         set(t >= end ? { sourceT: end, playing: false } : { sourceT: t })
       } else {
         const loc = locate(s.clips, s.editT)
-        if (loc && s.sources.find((x) => x.id === loc.clip.sourceId)?.mediaUrl) return
+        const ls = loc && s.sources.find((x) => x.id === loc.clip.sourceId)
+        if (loc && ls && getAngle(ls, loc.clip.angleId).mediaUrl) return
         const { total } = layout(s.clips)
         const t = s.editT + dt
         set(t >= total ? { editT: total, playing: false } : { editT: t })
@@ -617,12 +635,134 @@ export const useStore = create<State>((set, get) => {
       const sources = s.sources.filter((x) => x.id !== src.id)
       commit(s.clips.filter((c) => c.sourceId !== src.id), null)
       set({ sources, selectedSourceId: sources[0].id, sourceSel: null, sourceT: 0 })
-      if (src.mediaUrl) URL.revokeObjectURL(src.mediaUrl)
+      for (const a of angleList(src)) if (a.mediaUrl) URL.revokeObjectURL(a.mediaUrl)
       const isSample = SAMPLE_SOURCES.some((x) => x.id === src.id)
       const forget = isSample
         ? kvGet<string[]>('removedSamples').then((ids) => kvSet('removedSamples', [...(ids ?? []), src.id]))
         : deleteSource(src.id)
       forget.catch(() => get().toast('Couldn’t update storage'))
+    },
+    setSourceAngle: (sourceId, angleId) =>
+      set((s) => ({ sourceAngle: { ...s.sourceAngle, [sourceId]: angleId }, playing: false })),
+    setClipAngle: (clipId, angleId) => {
+      const s = get()
+      const clip = s.clips.find((c) => c.id === clipId)
+      if (!clip) return
+      const next = angleId === PRIMARY_ANGLE ? undefined : angleId
+      if (clip.angleId === next) return
+      commit(s.clips.map((c) => (c.id === clipId ? { ...c, angleId: next } : c)))
+    },
+    setAngleByNumber: (n) => {
+      const s = get()
+      const clip = s.clips.find((c) => c.id === s.selectedClipId)
+      const src = clip && s.sources.find((x) => x.id === clip.sourceId)
+      if (!clip || !src) return
+      const a = angleList(src)[n - 1]
+      if (!a) return get().toast(`This clip only has ${angleList(src).length} angle${angleList(src).length === 1 ? '' : 's'}`)
+      get().setClipAngle(clip.id, a.id)
+    },
+    updateSource: (sourceId, update) =>
+      set((s) => ({ sources: s.sources.map((x) => (x.id === sourceId ? update(x) : x)) })),
+
+    syncSources: (ids) => {
+      const s = get()
+      const picked = s.sources.filter((x) => ids.includes(x.id))
+      if (picked.length < 2) return get().toast('Select two or more clips to sync')
+      // the shared transcript comes from the source that has the most text
+      const primary = picked.reduce((best, x) => (x.words.length > best.words.length ? x : best))
+      const others = picked.filter((x) => x !== primary)
+      if (!window.confirm(`Sync ${picked.length} clips into one multicam clip?\n\nThey will share the transcript from “${primary.title}”. The other transcripts are discarded.`)) return
+
+      let merged: Source = primary
+      const remap = new Map<string, string>() // `${otherId}|${oldAngleId}` → new angle id
+      const mediaMoves: [string, string][] = []
+      let n = 0
+      for (const o of others) {
+        for (const a of angleList(o)) {
+          const used = new Set(angleList(merged).map((x) => x.camera.toUpperCase()))
+          const id = `${primary.id}-s${Date.now().toString(36)}${n++}`
+          const angle: Angle = {
+            id,
+            camera: used.has(a.camera.toUpperCase()) ? nextCamera(merged) : a.camera,
+            shotType: a.shotType,
+            filename: a.filename ?? o.title,
+            recordedAt: a.recordedAt,
+            mediaUrl: a.mediaUrl,
+            offsetMs: a.offsetMs,
+          }
+          merged = { ...merged, extraAngles: [...(merged.extraAngles ?? []), angle] }
+          remap.set(`${o.id}|${a.id}`, id)
+          mediaMoves.push([mediaKey(o.id, a.id), mediaKey(primary.id, id)])
+        }
+      }
+      const otherIds = new Set(others.map((o) => o.id))
+      const sources = s.sources.filter((x) => !otherIds.has(x.id)).map((x) => (x.id === primary.id ? merged : x))
+      const clips = s.clips.map((c) =>
+        otherIds.has(c.sourceId)
+          ? { ...c, sourceId: primary.id, angleId: remap.get(`${c.sourceId}|${c.angleId ?? PRIMARY_ANGLE}`) }
+          : c,
+      )
+      // syncing rewrites sources and clips together, so earlier undo steps no longer apply
+      set({ sources, clips, past: [], future: [], selectedSourceId: primary.id, sourceSel: null, sourceT: 0, playing: false })
+
+      // storage: move angle media under the primary source, then forget the merged-in sources
+      void (async () => {
+        try {
+          for (const [from, to] of mediaMoves) if (from !== to) await moveMedia(from, to)
+          for (const o of others) {
+            if (SAMPLE_SOURCES.some((x) => x.id === o.id)) {
+              const ids = (await kvGet<string[]>('removedSamples')) ?? []
+              await kvSet('removedSamples', [...ids, o.id])
+            } else await deleteSource(o.id)
+          }
+        } catch {
+          get().toast('Couldn’t update storage')
+        }
+      })()
+      get().toast(`Synced ${picked.length} clips — ${angleList(merged).length} angles, one transcript`)
+    },
+
+    unsyncAngle: (sourceId, angleId) => {
+      const s = get()
+      const src = s.sources.find((x) => x.id === sourceId)
+      if (!src?.extraAngles?.length) return
+      const leaving = angleId === 'all' ? src.extraAngles : src.extraAngles.filter((a) => a.id === angleId)
+      if (!leaving.length) return
+      const made: Source[] = leaving.map((a, i) => ({
+        id: `imp-${Date.now().toString(36)}-u${i}`,
+        title: `${src.title} – ${a.camera}`,
+        date: src.date,
+        duration: src.duration,
+        words: src.words,
+        sentences: src.sentences,
+        transcriptFormat: src.transcriptFormat,
+        mediaUrl: a.mediaUrl,
+        camera: a.camera,
+        shotType: a.shotType,
+        filename: a.filename,
+        recordedAt: a.recordedAt,
+      }))
+      const gone = new Set(leaving.map((a) => a.id))
+      const idFor = new Map(leaving.map((a, i) => [a.id, made[i].id]))
+      const remaining = src.extraAngles.filter((a) => !gone.has(a.id))
+      const updated: Source = { ...src, extraAngles: remaining.length ? remaining : undefined }
+      const at = s.sources.findIndex((x) => x.id === sourceId)
+      const sources = [...s.sources.slice(0, at), updated, ...made, ...s.sources.slice(at + 1)].map((x) => (x.id === sourceId ? updated : x))
+      const clips = s.clips.map((c) =>
+        c.sourceId === sourceId && c.angleId && gone.has(c.angleId) ? { ...c, sourceId: idFor.get(c.angleId)!, angleId: undefined } : c,
+      )
+      set({ sources, clips, past: [], future: [] })
+      void (async () => {
+        try {
+          for (const [i, a] of leaving.entries()) {
+            if (a.mediaUrl) await moveMedia(mediaKey(sourceId, a.id), mediaKey(made[i].id))
+            await saveSource(made[i]) // record only; media was moved above
+          }
+        } catch {
+          get().toast('Couldn’t update storage')
+        }
+      })()
+      get().toast(`Split ${leaving.length} angle${leaving.length > 1 ? 's' : ''} out into separate clips`)
     },
   }
 })

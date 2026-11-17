@@ -1,4 +1,4 @@
-import type { Source, Clip } from '../types'
+import type { Angle, Source, Clip } from '../types'
 
 /** Deterministic PRNG so sample data is stable between reloads. */
 function mulberry32(seed: number) {
@@ -55,15 +55,19 @@ interface Spec {
   shotType: string
   filename: string
   transcriptFormat: NonNullable<Source['transcriptFormat']>
-  syncId?: string
+  extraAngles?: Angle[]
 }
 
 const SPEC: Spec[] = [
   { id: 'src-john', title: 'John Doe', date: 'Nov 2, 2016', seed: 11, offset: 0, recordedAt: '09:15', camera: 'A', shotType: 'Wide', filename: 'JOHN_A001.mov', transcriptFormat: 'srt' },
-  // Jane was shot on three synced cameras — same words, same timing
-  { id: 'src-jane', title: 'Jane Smith', date: 'Dec 15, 2016', seed: 23, offset: 7, recordedAt: '14:02', camera: 'A', shotType: 'Wide', filename: 'JANE_A001.mov', transcriptFormat: 'vtt', syncId: 'sync-jane' },
-  { id: 'src-jane-b', title: 'Jane Smith – B Cam', date: 'Dec 15, 2016', seed: 23, offset: 7, recordedAt: '14:02', camera: 'B', shotType: 'Closeup', filename: 'JANE_B001.mov', transcriptFormat: 'vtt', syncId: 'sync-jane' },
-  { id: 'src-jane-gp', title: 'Jane Smith – GoPro', date: 'Dec 15, 2016', seed: 23, offset: 7, recordedAt: '14:02', camera: 'GoPro', shotType: 'BTS', filename: 'GOPR0412.mp4', transcriptFormat: 'auto', syncId: 'sync-jane' },
+  // Jane was shot on three synced cameras: one transcript, three angles
+  {
+    id: 'src-jane', title: 'Jane Smith', date: 'Dec 15, 2016', seed: 23, offset: 7, recordedAt: '14:02', camera: 'A', shotType: 'Wide', filename: 'JANE_A001.mov', transcriptFormat: 'vtt',
+    extraAngles: [
+      { id: 'src-jane-b', camera: 'B', shotType: 'Closeup', filename: 'JANE_B001.mov', recordedAt: '14:02', offsetMs: 120 },
+      { id: 'src-jane-gp', camera: 'GoPro', shotType: 'BTS', filename: 'GOPR0412.mp4', recordedAt: '14:03', offsetMs: 340 },
+    ],
+  },
   { id: 'src-tom', title: 'Tom Taylor', date: 'Mar 22, 2017', seed: 37, offset: 14, recordedAt: '11:40', camera: 'A', shotType: 'OTS', filename: 'TOM_A003.mov', transcriptFormat: 'json' },
   { id: 'src-sarah', title: 'Sarah Baker', date: 'July 18, 2017', seed: 41, offset: 21, recordedAt: '16:25', camera: 'B', shotType: 'Closeup', filename: 'SARAH_B002.mov', transcriptFormat: 'srt' },
 ]
@@ -102,7 +106,7 @@ function build(spec: Spec): Source {
     shotType: spec.shotType,
     filename: spec.filename,
     transcriptFormat: spec.transcriptFormat,
-    syncId: spec.syncId,
+    extraAngles: spec.extraAngles,
     duration: Math.round(t + 2000),
     words,
     sentences,

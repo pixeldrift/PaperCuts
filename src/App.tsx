@@ -69,6 +69,7 @@ function useShortcuts() {
         arrowleft: () => st.refine && st.nudge(e.shiftKey ? -10 : -1),
         arrowright: () => st.refine && st.nudge(e.shiftKey ? 10 : 1),
       }
+      if (/^[1-9]$/.test(k)) return (e.preventDefault(), st.setAngleByNumber(Number(k)))
       const fn = map[k]
       if (fn) {
         e.preventDefault()
