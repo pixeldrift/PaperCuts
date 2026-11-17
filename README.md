@@ -39,6 +39,15 @@ Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
 ## Trimming
 Select a clip to reveal faded words of source context around it. Drag the left/right handle over the text to move the in/out point (one undo step per drag). A plain click on a handle opens **Refine** for ±1 frame (Shift = ±10; also ←/→ while open).
 
+## Sources list
+- **Double-tap / double-click** a source to open it — on a phone that switches to the Source tab. A single tap just selects it.
+- **Sortable headers:** each header is a button with stacked ▲▼ arrows that are faded until the column is the sort column, then the active direction lights up. Click cycles ascending → descending → off.
+- **Options** (next to Remove): show/hide columns — Thumbnail, Title, Duration, Date, Time recorded, Camera, Shot type, Filename, Transcript (✓ + format), Multicam — and **Combine synced clips**, which groups multicam angles into one row with a twirl-down to see each angle. Settings are remembered. Title/thumbnail stay pinned while the table scrolls sideways.
+- Sources sharing a `syncId` are treated as the same take from different angles (sample data: Jane Smith on A, B and GoPro).
+
+## Panes & timelines
+Each pane has its own colour, icon and small-caps label (Source = violet, Paper Edit = teal, Timeline = amber), and the same colours mark the active top tab / phone nav tab. The paper edit has a mini timeline strip (tap or drag to scrub) and the Timeline view has a ruler with tick marks and times — tap or drag the ruler, or tap a clip, to move the current time. Timeline clips show a thumbnail, the source name and a wrapped, truncated preview of the clip's text; clip colours are per source.
+
 ## Transcript editing
 Press **T** (or *Edit Text*) in either pane.
 

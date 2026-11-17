@@ -75,6 +75,9 @@ export async function importFiles(files: File[]): Promise<ImportResult> {
       date,
       duration: Math.max(mediaMs, textMs),
       mediaUrl,
+      filename: (m ?? transcript)?.name,
+      recordedAt: new Date(file.lastModified || Date.now()).toTimeString().slice(0, 5),
+      transcriptFormat: transcript ? (transcript.name.split('.').pop()!.toLowerCase() as Source['transcriptFormat']) : undefined,
       ...parsed,
     })
   }

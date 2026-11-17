@@ -90,6 +90,24 @@ def main():
     wm_img = wm_img.crop(bbox)
     wm_img.save(out("public/brand/wordmark.png"))
 
+    # ── crisp top-bar assets: pre-scaled to the exact 1x/2x/3x pixel sizes so the browser
+    #    never has to squash a big image (that's what makes logos look soft). The JPEG-soft
+    #    alpha edge is tightened first.
+    a = np.asarray(wm_img.getchannel("A")).astype(float) / 255
+    a = np.clip((a - 0.14) / 0.72, 0, 1)
+    a = a * a * (3 - 2 * a)  # smoothstep
+    crisp = wm_img.copy()
+    crisp.putalpha(Image.fromarray(np.round(a * 255).astype(np.uint8)))
+    for h in (24, 48, 72):
+        w = round(crisp.width * h / crisp.height)
+        crisp.resize((w, h), Image.LANCZOS).save(out(f"public/brand/wordmark-{h}.png"))
+        if h == 24:
+            print("wordmark 1x size:", w, "x", h)
+    for px in (32, 64, 96):
+        big = rounded.resize((px, px), Image.LANCZOS)
+        big = Image.merge("RGBA", (*sharpen(big.convert("RGB")).split(), big.getchannel("A")))
+        big.save(out(f"public/icons/brand-{px}.png"))
+
     # ── previews
     for name, bg in (("dark", (23, 24, 28)), ("light", (255, 255, 255))):
         canvas = Image.new("RGB", (wm_img.width + 80, wm_img.height + 80), bg)

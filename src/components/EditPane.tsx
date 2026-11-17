@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { Avatar } from '../icons'
 import { EditHint } from './EditHint'
 import { WordInput } from './WordInput'
-import { fmtShort, layout, locate, useStore } from '../store'
+import { fmt, fmtShort, layout, locate, useStore } from '../store'
 import type { Clip, Word } from '../types'
 import { Toolbar } from './Toolbar'
+import { MiniTimeline } from './MiniTimeline'
+import { PaneHead } from './PaneHead'
 import { Viewer } from './Viewer'
 
 const NOTE_LABEL = { story: 'Story note', comment: 'Comment' } as const
@@ -270,9 +272,11 @@ export function EditPane() {
 
   return (
     <section className="pane edit-pane" aria-label="Paper edit">
-      <header className="pane-head">
-        <h2>Paper Edit – {name}</h2>
-      </header>
+      <PaneHead
+        kind="edit"
+        title={name}
+        right={<span className="pane-meta">{clips.length} clip{clips.length === 1 ? '' : 's'} · {fmt(layout(clips).total)}</span>}
+      />
       <Viewer kind="edit" />
       <Toolbar
         groups={[
@@ -305,6 +309,7 @@ export function EditPane() {
           <ClipBlock key={c.id} clip={c} selected={c.id === selectedId} active={playingEdit || c.id === activeId} />
         ))}
       </div>
+      <MiniTimeline />
     </section>
   )
 }

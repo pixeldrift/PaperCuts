@@ -155,6 +155,8 @@ interface State {
   setSourcesOpen: (o: boolean) => void
   zoomText: (dir: 1 | -1) => void
   selectSource: (id: string) => void
+  /** Select a source and go to it (Source tab on phones, closes the drawer on tablets). */
+  openSource: (id: string) => void
   setSourceSel: (sel: [number, number] | null) => void
   selectClip: (id: string | null) => void
   seekSource: (ms: number) => void
@@ -289,8 +291,9 @@ export const useStore = create<State>((set, get) => {
     zoomText: (dir) =>
       set((s) => ({ textScale: Math.min(1.7, Math.max(0.8, +(s.textScale + dir * 0.1).toFixed(2))) })),
 
-    selectSource: (id) =>
-      set({ selectedSourceId: id, sourceSel: null, sourceT: 0, playing: false, sourcesOpen: false }),
+    selectSource: (id) => set({ selectedSourceId: id, sourceSel: null, sourceT: 0, playing: false }),
+    openSource: (id) =>
+      set({ selectedSourceId: id, sourceSel: null, sourceT: 0, playing: false, sourcesOpen: false, mobilePane: 'source' }),
     setSourceSel: (sourceSel) => set({ sourceSel }),
     selectClip: (selectedClipId) => set({ selectedClipId, refine: null }),
 

@@ -82,9 +82,9 @@ function useShortcuts() {
 
 const NAV: { pane: Pane; label: string; icon: IconName }[] = [
   { pane: 'sources', label: 'Sources', icon: 'sources' },
-  { pane: 'source', label: 'Source', icon: 'editTranscript' },
-  { pane: 'edit', label: 'Edit', icon: 'newEdit' },
-  { pane: 'timeline', label: 'Timeline', icon: 'glueClips' },
+  { pane: 'source', label: 'Source', icon: 'kindSource' },
+  { pane: 'edit', label: 'Paper Edit', icon: 'kindEdit' },
+  { pane: 'timeline', label: 'Timeline', icon: 'kindTimeline' },
 ]
 
 export function App() {
@@ -121,14 +121,30 @@ export function App() {
           <Icon name="sources" size={20} />
         </button>
         <a className="brand" href="/" aria-label="PaperCuts">
-          <img className="brand-icon" src="/icons/icon-192.png" alt="" width="32" height="32" />
-          <img className="brand-word" src="/brand/wordmark.png" alt="PaperCuts" height="24" />
+          <img
+            className="brand-icon"
+            src="/icons/brand-32.png"
+            srcSet="/icons/brand-32.png 1x, /icons/brand-64.png 2x, /icons/brand-96.png 3x"
+            alt=""
+            width="32"
+            height="32"
+          />
+          <img
+            className="brand-word"
+            src="/brand/wordmark-24.png"
+            srcSet="/brand/wordmark-24.png 1x, /brand/wordmark-48.png 2x, /brand/wordmark-72.png 3x"
+            alt="PaperCuts"
+            width="122"
+            height="24"
+          />
         </a>
         <nav className="tabs" role="tablist">
-          <button role="tab" aria-selected={tab === 'transcripts'} onClick={() => st.setTab('transcripts')}>
+          <button role="tab" data-kind="source" aria-selected={tab === 'transcripts'} onClick={() => st.setTab('transcripts')}>
+            <Icon name="kindSource" size={18} />
             Transcripts
           </button>
-          <button role="tab" aria-selected={tab === 'edits'} onClick={() => st.setTab('edits')}>
+          <button role="tab" data-kind="edit" aria-selected={tab === 'edits'} onClick={() => st.setTab('edits')}>
+            <Icon name="kindEdit" size={18} />
             Paper Edits
           </button>
         </nav>
@@ -170,7 +186,7 @@ export function App() {
 
       <nav className="bottomnav" aria-label="Panels">
         {NAV.map((n) => (
-          <button key={n.pane} data-active={pane === n.pane} onClick={() => st.setMobilePane(n.pane)}>
+          <button key={n.pane} data-kind={n.pane} data-active={pane === n.pane} aria-current={pane === n.pane ? 'page' : undefined} onClick={() => st.setMobilePane(n.pane)}>
             <Icon name={n.icon} size={22} />
             <span>{n.label}</span>
           </button>

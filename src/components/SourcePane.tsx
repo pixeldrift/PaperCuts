@@ -7,6 +7,7 @@ import { EditHint } from './EditHint'
 import { findWord, selectSource, useStore } from '../store'
 import type { Word } from '../types'
 import { Toolbar } from './Toolbar'
+import { PaneHead } from './PaneHead'
 import { Viewer } from './Viewer'
 
 const WordSpan = memo(function WordSpan({
@@ -128,9 +129,11 @@ export function SourcePane() {
       aria-label="Source"
       data-compact={editMode || !!find || fullText !== null || undefined}
     >
-      <header className="pane-head">
-        <h2>Source – {source.title}</h2>
-      </header>
+      <PaneHead
+        kind="source"
+        title={source.title}
+        right={source.camera ? <span className="chip">{source.camera}{source.shotType ? ` · ${source.shotType}` : ''}</span> : undefined}
+      />
       <Viewer kind="source" />
       <Toolbar
         groups={[

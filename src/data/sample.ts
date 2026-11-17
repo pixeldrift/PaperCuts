@@ -44,17 +44,34 @@ const CORPUS = [
   'It felt less like making a documentary and more like uncovering something buried.',
 ]
 
-const SPEC: { id: string; title: string; date: string; seed: number; offset: number }[] = [
-  { id: 'src-john', title: 'John Doe', date: 'Nov 2, 2016', seed: 11, offset: 0 },
-  { id: 'src-jane', title: 'Jane Smith', date: 'Dec 15, 2016', seed: 23, offset: 7 },
-  { id: 'src-tom', title: 'Tom Taylor', date: 'Mar 22, 2017', seed: 37, offset: 14 },
-  { id: 'src-sarah', title: 'Sarah Baker', date: 'July 18, 2017', seed: 41, offset: 21 },
+interface Spec {
+  id: string
+  title: string
+  date: string
+  seed: number
+  offset: number
+  recordedAt: string
+  camera: string
+  shotType: string
+  filename: string
+  transcriptFormat: NonNullable<Source['transcriptFormat']>
+  syncId?: string
+}
+
+const SPEC: Spec[] = [
+  { id: 'src-john', title: 'John Doe', date: 'Nov 2, 2016', seed: 11, offset: 0, recordedAt: '09:15', camera: 'A', shotType: 'Wide', filename: 'JOHN_A001.mov', transcriptFormat: 'srt' },
+  // Jane was shot on three synced cameras — same words, same timing
+  { id: 'src-jane', title: 'Jane Smith', date: 'Dec 15, 2016', seed: 23, offset: 7, recordedAt: '14:02', camera: 'A', shotType: 'Wide', filename: 'JANE_A001.mov', transcriptFormat: 'vtt', syncId: 'sync-jane' },
+  { id: 'src-jane-b', title: 'Jane Smith – B Cam', date: 'Dec 15, 2016', seed: 23, offset: 7, recordedAt: '14:02', camera: 'B', shotType: 'Closeup', filename: 'JANE_B001.mov', transcriptFormat: 'vtt', syncId: 'sync-jane' },
+  { id: 'src-jane-gp', title: 'Jane Smith – GoPro', date: 'Dec 15, 2016', seed: 23, offset: 7, recordedAt: '14:02', camera: 'GoPro', shotType: 'BTS', filename: 'GOPR0412.mp4', transcriptFormat: 'auto', syncId: 'sync-jane' },
+  { id: 'src-tom', title: 'Tom Taylor', date: 'Mar 22, 2017', seed: 37, offset: 14, recordedAt: '11:40', camera: 'A', shotType: 'OTS', filename: 'TOM_A003.mov', transcriptFormat: 'json' },
+  { id: 'src-sarah', title: 'Sarah Baker', date: 'July 18, 2017', seed: 41, offset: 21, recordedAt: '16:25', camera: 'B', shotType: 'Closeup', filename: 'SARAH_B002.mov', transcriptFormat: 'srt' },
 ]
 
 const SENTENCES_PER_SOURCE = 72
 const SENTENCES_PER_PARAGRAPH = 4
 
-function build(spec: (typeof SPEC)[number]): Source {
+function build(spec: Spec): Source {
   const rand = mulberry32(spec.seed)
   const words: Source['words'] = []
   const sentences: Source['sentences'] = []
@@ -80,6 +97,12 @@ function build(spec: (typeof SPEC)[number]): Source {
     id: spec.id,
     title: spec.title,
     date: spec.date,
+    recordedAt: spec.recordedAt,
+    camera: spec.camera,
+    shotType: spec.shotType,
+    filename: spec.filename,
+    transcriptFormat: spec.transcriptFormat,
+    syncId: spec.syncId,
     duration: Math.round(t + 2000),
     words,
     sentences,

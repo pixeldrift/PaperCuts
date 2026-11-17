@@ -162,6 +162,42 @@ const paths = {
     </>
   ),
 
+  // — Pane kinds (headers / tabs)
+  kindSource: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" />
+      <path d="M10 9v6l5-3z" fill="currentColor" />
+    </>
+  ),
+  kindEdit: (
+    <>
+      <path d="M5 3.5h9l5 5v12H5z" />
+      <path d="M14 3.5v5h5M8.5 12.5h7M8.5 16h5" />
+    </>
+  ),
+  kindTimeline: (
+    <>
+      <path d="M3.5 8h17M3.5 8v-2M8.5 8v-2M13.5 8v-2M18.5 8v-2" />
+      <rect x="3.5" y="12" width="7" height="6" />
+      <rect x="12.5" y="12" width="8" height="6" />
+    </>
+  ),
+  options: (
+    <>
+      <path d="M4 7h7M15 7h5M4 17h3M11 17h9M4 12h10M18 12h2" />
+      <circle cx="13" cy="7" r="2" />
+      <circle cx="9" cy="17" r="2" />
+      <circle cx="16" cy="12" r="2" />
+    </>
+  ),
+  multicam: (
+    <>
+      <rect x="3.5" y="7.5" width="12" height="10" />
+      <path d="M8 4.5h12.5v10M18.5 20.5h-0" />
+      <path d="M8 4.5v3" />
+    </>
+  ),
+
   // — History
   undo: <path d="M9 5L4 10l5 5M4 10h10.5a5.5 5.5 0 0 1 0 11H10" />,
   redo: <path d="M15 5l5 5-5 5M20 10H9.5a5.5 5.5 0 0 0 0 11H14" />,

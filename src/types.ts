@@ -14,6 +14,17 @@ export interface Source {
   duration: number
   /** Object/remote URL of the media file. Absent = simulated playback. */
   mediaUrl?: string
+  /** Time of day it was recorded, 24h "HH:mm". */
+  recordedAt?: string
+  /** Camera / angle label: "A", "B", "GoPro"… */
+  camera?: string
+  /** Shot type: "Closeup", "Wide", "OTS", "BTS"… */
+  shotType?: string
+  filename?: string
+  /** Where the transcript came from. */
+  transcriptFormat?: 'srt' | 'vtt' | 'json' | 'auto'
+  /** Sources sharing a syncId are the same take from different angles (multicam). */
+  syncId?: string
   words: Word[]
   /** [firstWordIndex, lastWordIndex] per sentence. */
   sentences: [number, number][]
