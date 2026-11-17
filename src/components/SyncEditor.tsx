@@ -6,7 +6,11 @@ import { angleColor } from '../lib/colors'
 import { mediaDuration } from '../lib/importSources'
 import { mediaKey, saveMedia } from '../lib/db'
 import {
+  alignByWords,
   buildMaster,
+  candidates,
+  matchedWords,
+  wordKey,
   hasOwnTranscripts,
   layoutSignature,
   masterHasEdits,
@@ -19,9 +23,12 @@ import {
 import { AUDIO_EXT, MEDIA_EXT, TRANSCRIPT_EXT, parseTranscript } from '../lib/transcript'
 import { fakePeaks, loadPeaks } from '../lib/waveform'
 import { FRAME, useStore } from '../store'
-import { PRIMARY_ANGLE, type Angle, type Source } from '../types'
+import { PRIMARY_ANGLE, type Angle, type Source, type Word } from '../types'
 
 const LABEL_W = 232
+/** Zoom (px per second) at which transcript words become legible and are drawn individually. */
+const WORD_ZOOM = 36
+const OVERLAY_KEY = 'papercuts.syncOverlay'
 const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
 
 const clock = (ms: number) => {
@@ -102,7 +109,18 @@ function Editor({ source }: { source: Source }) {
   const linkInput = useRef<HTMLInputElement>(null)
   const linkFor = useRef<string>(PRIMARY_ANGLE)
   const innerRef = useRef<HTMLDivElement>(null)
-  const drag = useRef<{ id: string; x0: number; off0: number } | null>(null)
+  const drag = useRef<{ id: string; x0: number; off0: number; moved: boolean } | null>(null)
+  const scroller = useRef<HTMLDivElement>(null)
+  const [view, setView] = useState({ left: 0, width: 1600 })
+  const [hover, setHover] = useState<{ k: string; t: number } | null>(null)
+  /** One lane per camera: its words are drawn over the waveform instead of in a lane of their own. */
+  const [overlay, setOverlay] = useState(() => {
+    try {
+      return localStorage.getItem(OVERLAY_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
 
   const angles = angleList(draft)
   const delta = normalizeDelta(draft)
@@ -115,8 +133,106 @@ function Editor({ source }: { source: Source }) {
   const plan = useMemo(() => masterPlan(rebase(draft, delta)), [draft, delta])
   const segments = (plan?.segments ?? []).map((s) => ({ ...s, fromMs: s.fromMs - delta, toMs: s.toMs - delta }))
   const hasTranscripts = hasOwnTranscripts(draft)
+  const cands = useMemo(() => candidates(draft), [draft])
+  /** For each camera's words: does another camera's transcript have the same word at about the same time? */
+  const matched = useMemo(() => matchedWords(cands), [cands])
+  const wordsOn = zoom >= WORD_ZOOM
+  // time range currently on screen (+ a margin), so only visible words are drawn
+  const vis0 = origin + ((view.left - LABEL_W) / zoom) * 1000 - 800
+  const vis1 = origin + ((view.left + view.width - LABEL_W) / zoom) * 1000 + 800
 
   const setAngle = (aid: string, patch: Partial<Omit<Angle, 'id' | 'mediaUrl'>>) => setDraft((d) => patchAngle(d, aid, patch))
+
+  // ── line cameras up by the words they share
+  const referenceWords = (): Word[] | null => {
+    const master = cands.find((c) => c.id === (draft.masterAngle ?? PRIMARY_ANGLE)) ?? cands[0]
+    return master ? master.words : null
+  }
+  const alignOne = (aid: string): { offsetMs: number; matches: number; confidence: number } | null => {
+    const own = angles.find((a) => a.id === aid)?.transcript?.words
+    const ref = referenceWords()
+    return own && ref ? alignByWords(ref, own) : null
+  }
+  const alignAngle = (aid: string) => {
+    const res = alignOne(aid)
+    const cam = angles.find((a) => a.id === aid)?.camera
+    if (!res) return toast(`Not enough matching words to line up ${cam} — try dragging it closer first`)
+    setAngle(aid, { offsetMs: res.offsetMs })
+    toast(`Lined up ${cam}: ${res.matches} matching words (${Math.round(res.confidence * 100)}%)`)
+  }
+  const alignAll = () => {
+    const master = draft.masterAngle ?? PRIMARY_ANGLE
+    const found: Record<string, number> = {}
+    for (const a of angles) {
+      if (!a.transcript || a.id === (cands.find((c) => c.id === master) ? master : cands[0]?.id)) continue
+      const r = alignOne(a.id)
+      if (r) found[a.id] = r.offsetMs
+    }
+    const n = Object.keys(found).length
+    if (!n) return toast('No cameras could be lined up by words')
+    setDraft((d) => Object.entries(found).reduce((acc, [id, off]) => patchAngle(acc, id, { offsetMs: off }), d))
+    toast(`Lined up ${n} camera${n > 1 ? 's' : ''} by their words`)
+  }
+
+  // ── words drawn on the time axis (only those on screen); same word in two tracks lines up
+  const wordRun = (aid: string, relTo = 0) => {
+    const c = cands.find((x) => x.id === aid)
+    if (!c) return null
+    const flags = matched[aid]
+    const out: React.ReactNode[] = []
+    c.words.forEach((w, i) => {
+      if (w.e < vis0 || w.s > vis1) return
+      const hot = !!hover && hover.k === wordKey(w.t) && Math.abs(w.s - hover.t) <= 500
+      out.push(
+        <span
+          key={i}
+          className="wd"
+          data-m={flags?.[i] ? 1 : 0}
+          data-h={hot || undefined}
+          style={{ left: px(w.s) - relTo, width: Math.max(8, ((w.e - w.s) / 1000) * zoom - 1) }}
+          title={`${w.t} · ${clock(w.s)}`}
+          onMouseEnter={() => setHover({ k: wordKey(w.t), t: w.s })}
+          onMouseLeave={() => setHover(null)}
+          onClick={() => !drag.current?.moved && seek(w.s)}
+        >
+          {w.t}
+        </span>,
+      )
+    })
+    return out
+  }
+
+  /** Zoom while keeping the playhead where it is on screen. */
+  const zoomTo = (z: number) => {
+    const el = scroller.current
+    const nz = Math.min(240, Math.max(1, z))
+    const keep = el ? LABEL_W + ((tRef.current - origin) / 1000) * zoom - el.scrollLeft : 0
+    setZoom(nz)
+    requestAnimationFrame(() => {
+      if (el) el.scrollLeft = Math.max(0, LABEL_W + ((tRef.current - origin) / 1000) * nz - keep)
+    })
+  }
+  const trControls = (a: Angle) => {
+    const tr = a.transcript
+    const isPrimary = (draft.masterAngle ?? PRIMARY_ANGLE) === a.id
+    return (
+      <div className="lab-btns">
+        {tr && (
+          <label className="radio" title="Use this transcript first when building the shared one">
+            <input type="radio" name="master" checked={isPrimary} onChange={() => setDraft((d) => ({ ...d, masterAngle: a.id }))} />
+            Primary
+          </label>
+        )}
+        <button className="fbtn" onClick={() => ((linkFor.current = a.id), linkInput.current?.click())}>{tr ? 'Replace…' : 'Link transcript…'}</button>
+        {tr && !isPrimary && cands.length > 1 && (
+          <button className="fbtn" onClick={() => alignAngle(a.id)} title="Slide this camera so its words land on the same words in the primary transcript">
+            Align by words
+          </button>
+        )}
+        {tr && <button className="fbtn danger" onClick={() => setAngle(a.id, { transcript: undefined })}>Remove</button>}
+      </div>
+    )
+  }
 
   // ── playback: one clock drives every camera at its own offset
   useEffect(() => {
@@ -223,6 +339,14 @@ function Editor({ source }: { source: Source }) {
     toast('Sync applied')
   }
 
+  // measure the scroll area (for drawing only the visible words)
+  useEffect(() => {
+    const measure = () => scroller.current && setView({ left: scroller.current.scrollLeft, width: scroller.current.clientWidth })
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+
   // keys: space = play, Esc = close
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -244,7 +368,6 @@ function Editor({ source }: { source: Source }) {
   const colorOf = (aid: string) => angleColor(Math.max(0, angles.findIndex((a) => a.id === aid)))
   const videoAngs = angles.filter((a) => !a.audioOnly)
   const audioAngs = angles.filter((a) => a.audioOnly)
-  const masterId = draft.masterAngle ?? PRIMARY_ANGLE
 
   const offsetControls = (a: Angle) => (
     <div className="off-ctl">
@@ -265,12 +388,14 @@ function Editor({ source }: { source: Source }) {
   const startDrag = (e: React.PointerEvent, a: Angle) => {
     if (e.button !== 0) return
     e.currentTarget.setPointerCapture(e.pointerId)
-    drag.current = { id: a.id, x0: e.clientX, off0: a.offsetMs }
+    drag.current = { id: a.id, x0: e.clientX, off0: a.offsetMs, moved: false }
     setSelected(a.id)
   }
   const moveDrag = (e: React.PointerEvent) => {
     const d = drag.current
-    if (d) setAngle(d.id, { offsetMs: Math.round(d.off0 + ((e.clientX - d.x0) / zoom) * 1000) })
+    if (!d) return
+    if (Math.abs(e.clientX - d.x0) > 3) d.moved = true
+    setAngle(d.id, { offsetMs: Math.round(d.off0 + ((e.clientX - d.x0) / zoom) * 1000) })
   }
 
   return createPortal(
@@ -285,6 +410,11 @@ function Editor({ source }: { source: Source }) {
             <h2>{draft.title}</h2>
           </div>
           <div className="sync-actions">
+            {cands.length > 1 && (
+              <button className="fbtn" onClick={alignAll} title="Slide every camera so its words land on the same words in the primary transcript">
+                Auto-align by words
+              </button>
+            )}
             <button className="fbtn" onClick={() => addInput.current?.click()} title="Add another camera or an external audio recording">
               + Camera / audio
             </button>
@@ -363,15 +493,37 @@ function Editor({ source }: { source: Source }) {
           </button>
           <span className="timecode wide">{clock(t)}</span>
           <span className="sync-hint">Drag a camera’s bar to line it up · space plays · the playhead drives every camera at once</span>
+          <label className="radio" title="Draw each camera's words on top of its audio, so a camera takes one lane">
+            <input
+              type="checkbox"
+              checked={overlay}
+              onChange={(e) => {
+                setOverlay(e.target.checked)
+                try {
+                  localStorage.setItem(OVERLAY_KEY, e.target.checked ? '1' : '0')
+                } catch {
+                  /* storage unavailable */
+                }
+              }}
+            />
+            Words on audio
+          </label>
+          <button className="fbtn" onClick={() => zoomTo(wordsOn ? 12 : 90)} title="Zoom in until individual words can be read and matched">
+            {wordsOn ? 'Zoom out' : 'Show words'}
+          </button>
           <label className="zoom">
             <Icon name="zoomOut" size={14} />
-            <input type="range" min={1} max={60} step={0.5} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} aria-label="Timeline zoom" />
+            <input type="range" min={1} max={240} step={0.5} value={zoom} onChange={(e) => zoomTo(Number(e.target.value))} aria-label="Timeline zoom" />
             <Icon name="zoomIn" size={14} />
           </label>
         </div>
 
         {/* stacked timeline */}
-        <div className="sync-scroll">
+        <div
+          className="sync-scroll"
+          ref={scroller}
+          onScroll={() => requestAnimationFrame(() => scroller.current && setView({ left: scroller.current.scrollLeft, width: scroller.current.clientWidth }))}
+        >
           <div className="sync-inner" ref={innerRef} style={{ width: LABEL_W + width }}>
             <div
               className="sync-row ruler-row"
@@ -396,7 +548,7 @@ function Editor({ source }: { source: Source }) {
             {angles.map((a, i) => {
               const color = colorOf(a.id)
               return (
-                <div key={a.id} className="sync-row" data-selected={selected === a.id || undefined} onClick={() => setSelected(a.id)}>
+                <div key={a.id} className="sync-row" data-overlay={(overlay && !a.audioOnly) || undefined} data-selected={selected === a.id || undefined} onClick={() => setSelected(a.id)}>
                   <div className="sync-label">
                     <div className="lab-top">
                       <span className="chip" style={{ borderColor: color }}>{a.camera}</span>
@@ -409,6 +561,7 @@ function Editor({ source }: { source: Source }) {
                     </div>
                     {offsetControls(a)}
                     <small className="lab-file">{a.filename ?? (i === 0 ? 'primary' : '')}</small>
+                    {overlay && !a.audioOnly && trControls(a)}
                   </div>
                   <div className="sync-lane" style={{ width }}>
                     <div
@@ -422,6 +575,8 @@ function Editor({ source }: { source: Source }) {
                     >
                       <span className="block-title">{a.filename ?? a.camera}</span>
                       <Waveform angle={a} width={((a.durationMs ?? source.duration) / 1000) * zoom} color={color} />
+                      {overlay && wordsOn && <div className="wd-layer">{wordRun(a.id, px(a.offsetMs))}</div>}
+                      {overlay && !wordsOn && a.transcript && <span className="wd-hint">zoom in to see words</span>}
                     </div>
                   </div>
                 </div>
@@ -432,6 +587,7 @@ function Editor({ source }: { source: Source }) {
               Transcripts <small>— only one is active at any point on the timeline</small>
             </div>
             {angles.map((a) => {
+              if (overlay && !a.audioOnly) return null // each camera's words are on its audio lane instead
               const color = colorOf(a.id)
               const tr = a.transcript
               const first = tr?.words[0]
@@ -443,25 +599,19 @@ function Editor({ source }: { source: Source }) {
                       <span className="chip" style={{ borderColor: color }}>{a.camera}</span>
                       <span className="lab-name">{tr ? `${tr.words.length.toLocaleString()} words${tr.format ? ` · ${tr.format.toUpperCase()}` : ''}` : 'No transcript'}</span>
                     </div>
-                    <div className="lab-btns">
-                      {tr && (
-                        <label className="radio" title="Use this transcript first when building the shared one">
-                          <input type="radio" name="master" checked={masterId === a.id} onChange={() => setDraft((d) => ({ ...d, masterAngle: a.id }))} />
-                          Primary
-                        </label>
-                      )}
-                      <button className="fbtn" onClick={() => ((linkFor.current = a.id), linkInput.current?.click())}>{tr ? 'Replace…' : 'Link transcript…'}</button>
-                      {tr && <button className="fbtn danger" onClick={() => setAngle(a.id, { transcript: undefined })}>Remove</button>}
-                    </div>
+                    {trControls(a)}
                   </div>
                   <div className="sync-lane" style={{ width }}>
-                    {tr && first && last ? (
+                    {tr && first && last && wordsOn ? (
+                      <div className="wd-layer lane">{wordRun(a.id)}</div>
+                    ) : tr && first && last ? (
                       <div
                         className="sync-block tr"
                         data-used={segments.some((s) => s.angleId === a.id) || undefined}
                         style={{ left: px(first.s + a.offsetMs), width: ((last.e - first.s) / 1000) * zoom, ['--c' as string]: color }}
                       >
                         <span className="block-title">{tr.words.slice(0, 14).map((w) => w.t).join(' ')}…</span>
+                        <span className="wd-hint">zoom in to see words</span>
                       </div>
                     ) : (
                       <span className="lane-empty">no transcript linked to this camera</span>

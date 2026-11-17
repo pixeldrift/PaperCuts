@@ -2727,3 +2727,83 @@ body {
     max-height: 24vh;
   }
 }
+
+/* ═════════ sync editor: words on the time axis ═════════ */
+.wd-layer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 22px;
+  height: 19px;
+  z-index: 3;
+}
+.wd-layer.lane {
+  top: 50%;
+  margin-top: -10px;
+  right: auto;
+  width: 100%;
+}
+.wd {
+  position: absolute;
+  top: 0;
+  height: 19px;
+  box-sizing: border-box;
+  padding: 0 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 17px;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.45);
+  border-bottom: 2px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+/* the same word is in another track at about the same time */
+.wd[data-m='1'] {
+  border-bottom-color: var(--accent-hi);
+  background: color-mix(in srgb, var(--accent) 24%, rgba(0, 0, 0, 0.45));
+}
+/* nothing in the other tracks matches here — probably out of sync, or just not said there */
+.wd[data-m='0'] {
+  opacity: 0.6;
+  border-bottom-color: rgba(255, 255, 255, 0.15);
+}
+.wd[data-h] {
+  opacity: 1;
+  background: var(--accent);
+  color: #fff;
+  z-index: 2;
+}
+.wd-hint {
+  position: absolute;
+  left: 8px;
+  bottom: 4px;
+  font-size: 10px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.sync-block.tr .wd-hint {
+  top: auto;
+  bottom: 4px;
+}
+/* camera lanes that also carry words need more height */
+.sync-row[data-overlay] {
+  min-height: 112px;
+}
+.sync-row[data-overlay] .sync-block {
+  top: 6px;
+  bottom: 6px;
+}
+.sync-row[data-overlay] .wave {
+  height: 40px;
+}
+.sync-transport .radio {
+  margin-left: 6px;
+  white-space: nowrap;
+}
+.sync-transport .fbtn {
+  height: 26px;
+  font-size: 12px;
+}

@@ -711,7 +711,7 @@ export const useStore = create<State>((set, get) => {
       // the longest transcript becomes the base clip and, by default, the shared (master) transcript
       const primary = picked.reduce((best, x) => (transcriptSpan(x) > transcriptSpan(best) || (transcriptSpan(x) === transcriptSpan(best) && x.words.length > best.words.length) ? x : best))
       const others = picked.filter((x) => x !== primary)
-      if (!window.confirm(`Sync ${picked.length} clips into one multicam clip?\n\nEvery transcript is kept. “${primary.title}” has the longest one, so it is used as the shared transcript — you can change that in the Sync Editor.`)) return
+      if (!window.confirm(`Sync ${picked.length} clips into one multicam clip?\n\nEvery transcript is kept. “${primary.title}” has the longest one, so it is the primary; the other transcripts fill in whatever it doesn’t cover. You can change that in the Sync Editor.`)) return
 
       let merged: Source = { ...primary, mainDuration: primary.mainDuration ?? primary.duration }
       const remap = new Map<string, string>() // `${otherId}|${oldAngleId}` → new angle id
@@ -738,7 +738,7 @@ export const useStore = create<State>((set, get) => {
           mediaMoves.push([mediaKey(o.id, a.id), mediaKey(primary.id, id)])
         }
       }
-      merged = { ...merged, masterAngle: longestAngleId(merged), transcriptMode: 'single' }
+      merged = { ...merged, masterAngle: longestAngleId(merged), transcriptMode: 'combined' }
       const built = buildMaster(merged)
       if (built) merged = { ...merged, words: built.words, sentences: built.sentences, transcriptFormat: built.format ?? merged.transcriptFormat }
       merged = { ...merged, duration: timelineLength(merged) }

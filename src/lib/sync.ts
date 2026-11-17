@@ -155,3 +155,94 @@ export function rebase(src: Source, delta: number): Source {
 
 /** The shift that puts the earliest footage at zero (0 if nothing starts before zero). */
 export const normalizeDelta = (src: Source) => Math.max(0, -Math.min(0, ...angleList(src).map((a) => a.offsetMs)))
+
+// ───────────────────────── aligning transcripts by their words ─────────────────────────
+
+/** A word reduced to what survives transcription differences (case, punctuation). */
+export const wordKey = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+
+export interface WordAlignment {
+  /** The offset to give the camera so its words land on the reference's. */
+  offsetMs: number
+  /** How many words agree (within a quarter second) once aligned. */
+  matches: number
+  /** Share of the shorter transcript's words that matched. */
+  confidence: number
+}
+
+/**
+ * Find how far a camera's transcript has to move to line up with a reference transcript, by
+ * matching the words they have in common — if two cameras heard the same speech, the same word
+ * shows up at times that differ by a constant. `ref` is already on the shared timeline;
+ * `own` is in the camera's own time. Returns null if there isn't enough in common.
+ */
+export function alignByWords(ref: Word[], own: Word[]): WordAlignment | null {
+  const index = (words: Word[]) => {
+    const m = new Map<string, number[]>()
+    for (const w of words) {
+      const k = wordKey(w.t)
+      if (k.length < 3) continue
+      m.set(k, [...(m.get(k) ?? []), w.s])
+    }
+    return m
+  }
+  const a = index(ref)
+  const b = index(own)
+  const deltas: number[] = []
+  for (const [k, rt] of a) {
+    const ot = b.get(k)
+    // rare-ish words are the informative ones
+    if (!ot || rt.length > 6 || ot.length > 6) continue
+    for (const r of rt) for (const o of ot) deltas.push(r - o)
+  }
+  if (deltas.length < 5) return null
+
+  // vote in 250 ms bins (plus neighbours) for the most common difference
+  const BIN = 250
+  const votes = new Map<number, number>()
+  for (const d of deltas) votes.set(Math.round(d / BIN), (votes.get(Math.round(d / BIN)) ?? 0) + 1)
+  let best = 0
+  let bestScore = -1
+  for (const [bin, n] of votes) {
+    const score = n + (votes.get(bin - 1) ?? 0) + (votes.get(bin + 1) ?? 0)
+    if (score > bestScore) (bestScore = score), (best = bin)
+  }
+  const near = deltas.filter((d) => Math.abs(d - best * BIN) <= BIN * 1.5).sort((x, y) => x - y)
+  if (near.length < 5) return null
+  const offsetMs = Math.round(near[near.length >> 1])
+
+  // count words that truly agree at that offset
+  let matches = 0
+  for (const w of own) {
+    const k = wordKey(w.t)
+    if (k.length < 3) continue
+    if (a.get(k)?.some((rt) => Math.abs(rt - (w.s + offsetMs)) <= BIN)) matches++
+  }
+  const confidence = matches / Math.max(1, Math.min(ref.length, own.length))
+  return matches >= 5 && confidence >= 0.05 ? { offsetMs, matches, confidence } : null
+}
+
+/**
+ * For drawing: which words of each transcript have a matching word (same text, within `tol` ms) in
+ * another camera's transcript. Keyed by angle id; entries line up with that angle's own words.
+ */
+export function matchedWords(cands: Candidate[], tol = 400): Record<string, Uint8Array> {
+  const maps = cands.map((c) => {
+    const m = new Map<string, number[]>()
+    for (const w of c.words) {
+      const k = wordKey(w.t)
+      if (k) (m.get(k) ?? m.set(k, []).get(k)!).push(w.s)
+    }
+    return m
+  })
+  const out: Record<string, Uint8Array> = {}
+  cands.forEach((c, i) => {
+    const flags = new Uint8Array(c.words.length)
+    c.words.forEach((w, j) => {
+      const k = wordKey(w.t)
+      flags[j] = maps.some((m, mi) => mi !== i && m.get(k)?.some((t) => Math.abs(t - w.s) <= tol)) ? 1 : 0
+    })
+    out[c.id] = flags
+  })
+  return out
+}
