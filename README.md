@@ -40,13 +40,24 @@ Drop files on the Sources panel, press the **+** button, or use `Cmd/Ctrl+I`.
 Select a clip to reveal faded words of source context around it. Drag the left/right handle over the text to move the in/out point (one undo step per drag). A plain click on a handle opens **Refine** for ±1 frame (Shift = ±10; also ←/→ while open).
 
 ## Multicam
-Footage of the same take from different cameras is **one clip with several angles and one shared transcript** — you cut from the transcript once and choose the angle per clip.
+Footage of the same take from different cameras is **one clip with several angles** — you cut from one shared transcript and choose the angle per clip.
 
-- **Sync on import:** drop several videos with one transcript (`.srt` / `.vtt` / `.json`) and they become angles A, B, C… of a single clip. Videos pair with a transcript by name when you import several transcripts.
-- **Sync later:** *Select* → tick the clips that are the same take → *Sync as multicam*. The clip with the most transcript text keeps its transcript; clips already in the edit are re-pointed to the matching angle. *Unsync* (in Clip info) splits angles back out.
-- **Choose the angle:** every clip in the Paper Edit has angle chips (A · B · GoPro); with a clip selected, **1–9** picks its Nth angle. The Source pane has a *Preview angle* switch, and the timeline shows each clip's camera. Playback uses the chosen angle's video.
-- **Sync offsets:** each extra angle has an offset (how much later that camera started) so media lines up with the shared timeline; set it in Clip info (±1 frame buttons).
-- In the Sources list, *Combine synced clips* (default) shows one row per clip with angles under a twirl-down; turn it off to list every angle as its own row.
+- **Sync on import:** drop several videos (or external audio) with one transcript and they become angles A, B, C… of a single clip.
+- **Sync later:** *Select* → tick the clips that are the same take → *Sync as multicam*. **Every transcript is kept** (each camera keeps its own); the **longest** becomes the primary/shared one by default. Clips already in the edit are re-pointed to the matching angle.
+- **Unsync** (Clip info) splits angles back out. A split-out camera gets **its own original transcript**; if it never had one it gets a copy of the shared transcript (re-timed to its footage) — until you choose **Remove transcript**. A clip left with one camera reverts to its own transcript.
+- **Choose the angle:** every clip in the Paper Edit has angle chips (A · B · GoPro); with a clip selected, **1–9** picks its Nth camera. The Source pane has a *Preview angle* switch and the timeline shows each clip's camera. Playback uses the chosen angle's video.
+
+### Sync editor (Sources → *Sync*, or Clip info → *Sync editor*)
+A multicam grid (security-camera style) over a nested timeline of its own, stacked:
+- **Cameras & audio** — one lane per camera with its waveform (decoded from the real audio; simulated for sample footage). **Drag a lane** (or use the ‹ › / « » frame nudges, or type milliseconds) to line it up with the others. *+ Camera / audio* links more footage, including external audio-only recordings. The playhead plays every camera together at its own offset; click a speaker to choose which one you hear.
+- **Transcripts** — each camera's own transcript as a block on the timeline (*Link transcript…* to attach one, *Remove* to drop it). Pick which is **Primary**.
+- **Shared transcript** — what the whole app edits from. **Only one transcript is active at any point.** With *Combine all transcripts* on, the primary's transcript is used where it exists and other transcripts fill in what it doesn't cover (a camera that rolled early or kept rolling), so the shared transcript spans the entire duration.
+- If a camera rolled *before* the others, dragging it earlier **rebases the timeline** so it starts at 0 — clips already in your edit are shifted by the same amount so they stay on the same footage.
+- Applying a change that rebuilds the shared transcript warns first if you've hand-edited its text.
+- In the Sources list, *Combine synced clips* (default) shows one row per clip with its angles under a twirl-down.
+
+## Slate metadata
+Scene, Take, Director, DP / Camera op and Interviewer — edit them in Clip info; show them as columns (Options) and search across them.
 
 ## Clip info (edit metadata)
 **Double-click** a clip's data (anything except the thumbnail/title), or **press and hold** a row (or right-click, or press `I`), to edit its title, date, and per-angle camera, shot type, filename, time recorded and sync offset. Double-click the thumbnail/title still opens the clip.

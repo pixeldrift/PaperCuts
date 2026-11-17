@@ -1,3 +1,4 @@
+import { buildMaster, shiftWords } from '../lib/sync'
 import type { Angle, Source, Clip } from '../types'
 
 /** Deterministic PRNG so sample data is stable between reloads. */
@@ -56,20 +57,30 @@ interface Spec {
   filename: string
   transcriptFormat: NonNullable<Source['transcriptFormat']>
   extraAngles?: Angle[]
+  scene: string
+  take: string
+  director: string
+  dp: string
+  interviewer: string
+  /** Multicam demo: sentence ranges [from, to) each camera's own transcript covers. */
+  own?: { main: [number, number]; extra: [number, number] }
 }
 
 const SPEC: Spec[] = [
-  { id: 'src-john', title: 'John Doe', date: 'Nov 2, 2016', seed: 11, offset: 0, recordedAt: '09:15', camera: 'A', shotType: 'Wide', filename: 'JOHN_A001.mov', transcriptFormat: 'srt' },
+  { id: 'src-john', title: 'John Doe', date: 'Nov 2, 2016', seed: 11, offset: 0, recordedAt: '09:15', camera: 'A', shotType: 'Wide', filename: 'JOHN_A001.mov', transcriptFormat: 'srt', scene: '1', take: '2', director: 'R. Alvarez', dp: 'M. Chen', interviewer: 'Priya N.' },
   // Jane was shot on three synced cameras: one transcript, three angles
   {
     id: 'src-jane', title: 'Jane Smith', date: 'Dec 15, 2016', seed: 23, offset: 7, recordedAt: '14:02', camera: 'A', shotType: 'Wide', filename: 'JANE_A001.mov', transcriptFormat: 'vtt',
+    scene: '2', take: '1', director: 'R. Alvarez', dp: 'M. Chen', interviewer: 'Priya N.',
+    // camera A stopped early; B rolled late and ran longer; the GoPro has no transcript of its own
+    own: { main: [0, 56], extra: [10, 72] },
     extraAngles: [
       { id: 'src-jane-b', camera: 'B', shotType: 'Closeup', filename: 'JANE_B001.mov', recordedAt: '14:02', offsetMs: 120 },
       { id: 'src-jane-gp', camera: 'GoPro', shotType: 'BTS', filename: 'GOPR0412.mp4', recordedAt: '14:03', offsetMs: 340 },
     ],
   },
-  { id: 'src-tom', title: 'Tom Taylor', date: 'Mar 22, 2017', seed: 37, offset: 14, recordedAt: '11:40', camera: 'A', shotType: 'OTS', filename: 'TOM_A003.mov', transcriptFormat: 'json' },
-  { id: 'src-sarah', title: 'Sarah Baker', date: 'July 18, 2017', seed: 41, offset: 21, recordedAt: '16:25', camera: 'B', shotType: 'Closeup', filename: 'SARAH_B002.mov', transcriptFormat: 'srt' },
+  { id: 'src-tom', title: 'Tom Taylor', date: 'Mar 22, 2017', seed: 37, offset: 14, recordedAt: '11:40', camera: 'A', shotType: 'OTS', filename: 'TOM_A003.mov', transcriptFormat: 'json', scene: '3', take: '4', director: 'R. Alvarez', dp: 'S. Okafor', interviewer: 'Dan W.' },
+  { id: 'src-sarah', title: 'Sarah Baker', date: 'July 18, 2017', seed: 41, offset: 21, recordedAt: '16:25', camera: 'B', shotType: 'Closeup', filename: 'SARAH_B002.mov', transcriptFormat: 'srt', scene: '4', take: '1', director: 'J. Moreau', dp: 'S. Okafor', interviewer: 'Dan W.' },
 ]
 
 const SENTENCES_PER_SOURCE = 72
@@ -97,7 +108,7 @@ function build(spec: Spec): Source {
     t += endOfPara ? 1400 : 550
   }
 
-  return {
+  const src: Source = {
     id: spec.id,
     title: spec.title,
     date: spec.date,
@@ -107,10 +118,38 @@ function build(spec: Spec): Source {
     filename: spec.filename,
     transcriptFormat: spec.transcriptFormat,
     extraAngles: spec.extraAngles,
+    scene: spec.scene,
+    take: spec.take,
+    director: spec.director,
+    dp: spec.dp,
+    interviewer: spec.interviewer,
     duration: Math.round(t + 2000),
     words,
     sentences,
   }
+
+  // multicam demo: each camera keeps its own transcript, timed against its own footage
+  if (spec.own && spec.extraAngles) {
+    const slice = ([a, b]: [number, number]) => words.slice(sentences[a][0], sentences[b - 1][1] + 1)
+    const [b0] = spec.extraAngles
+    const mainWords = slice(spec.own.main)
+    const bWords = shiftWords(slice(spec.own.extra), -b0.offsetMs)
+    const withDur: Source = {
+      ...src,
+      mainDuration: src.duration,
+      primaryTranscript: { words: mainWords, format: spec.transcriptFormat },
+      extraAngles: spec.extraAngles.map((a, k) => ({
+        ...a,
+        durationMs: src.duration,
+        ...(k === 0 ? { transcript: { words: bWords, format: 'srt' as const } } : {}),
+      })),
+      masterAngle: b0.id, // the longest transcript has priority
+      transcriptMode: 'combined',
+    }
+    const built = buildMaster(withDur)!
+    return { ...withDur, words: built.words, sentences: built.sentences }
+  }
+  return src
 }
 
 export const SAMPLE_SOURCES: Source[] = SPEC.map(build)

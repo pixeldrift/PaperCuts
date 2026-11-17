@@ -10,11 +10,16 @@ export function angleList(src: Source): Angle[] {
       filename: src.filename,
       recordedAt: src.recordedAt,
       mediaUrl: src.mediaUrl,
-      offsetMs: 0,
+      offsetMs: src.mainOffset ?? 0,
+      durationMs: src.mainDuration ?? src.duration,
+      transcript: src.primaryTranscript,
     },
     ...(src.extraAngles ?? []),
   ]
 }
+
+/** Angles you can pick for a clip (cameras, not audio-only recorders). */
+export const videoAngles = (src: Source) => angleList(src).filter((a) => !a.audioOnly)
 
 /** The requested angle, falling back to the primary one. */
 export function getAngle(src: Source, angleId?: string): Angle {
@@ -37,13 +42,16 @@ export function nextCamera(src: Source) {
 /** Apply a patch to one angle of a source (the primary angle lives on the source itself). */
 export function patchAngle(src: Source, angleId: string, patch: Partial<Omit<Angle, 'id' | 'mediaUrl'>>): Source {
   if (angleId === PRIMARY_ANGLE) {
-    const { camera, shotType, filename, recordedAt } = patch
+    const { camera, shotType, filename, recordedAt, transcript, durationMs, offsetMs } = patch
     return {
       ...src,
       ...(camera !== undefined && { camera }),
       ...(shotType !== undefined && { shotType }),
       ...(filename !== undefined && { filename }),
       ...(recordedAt !== undefined && { recordedAt }),
+      ...('transcript' in patch && { primaryTranscript: transcript }),
+      ...(durationMs !== undefined && { mainDuration: durationMs }),
+      ...(offsetMs !== undefined && { mainOffset: offsetMs || undefined }),
     }
   }
   return { ...src, extraAngles: (src.extraAngles ?? []).map((a) => (a.id === angleId ? { ...a, ...patch } : a)) }

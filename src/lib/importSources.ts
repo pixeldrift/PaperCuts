@@ -5,7 +5,7 @@ import { MEDIA_EXT, TRANSCRIPT_EXT, parseTranscript } from './transcript'
 const base = (name: string) => name.replace(/\.[^.]+$/, '')
 const norm = (name: string) => base(name).toLowerCase().replace(/[^a-z0-9]+/g, '')
 
-function mediaDuration(url: string): Promise<number> {
+export function mediaDuration(url: string): Promise<number> {
   return new Promise((resolve) => {
     const v = document.createElement('video')
     v.preload = 'metadata'

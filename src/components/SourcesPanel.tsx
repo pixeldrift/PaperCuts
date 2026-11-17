@@ -22,6 +22,11 @@ type ColKey =
   | 'filename'
   | 'transcript'
   | 'multicam'
+  | 'scene'
+  | 'take'
+  | 'director'
+  | 'dp'
+  | 'interviewer'
 
 /** One table row: a clip (source), or — when it has several angles — one of its angles. */
 interface Row {
@@ -93,6 +98,11 @@ const COLS: Col[] = [
   },
   { key: 'shotType', label: 'Shot', option: 'Shot type', defaultOn: false, sort: (r) => (r.angle.shotType ?? '').toLowerCase(), render: (r) => r.angle.shotType ?? '—' },
   { key: 'filename', label: 'Filename', option: 'Filename', defaultOn: false, sort: (r) => (r.angle.filename ?? '').toLowerCase(), render: (r) => <span className="mono">{r.angle.filename ?? '—'}</span> },
+  { key: 'scene', label: 'Scene', option: 'Scene', defaultOn: false, sort: (r) => (r.source.scene ?? '').padStart(6, '0'), render: (r) => r.source.scene ?? '—' },
+  { key: 'take', label: 'Take', option: 'Take', defaultOn: false, sort: (r) => (r.source.take ?? '').padStart(6, '0'), render: (r) => r.source.take ?? '—' },
+  { key: 'director', label: 'Director', option: 'Director', defaultOn: false, sort: (r) => (r.source.director ?? '').toLowerCase(), render: (r) => r.source.director ?? '—' },
+  { key: 'dp', label: 'DP / Op', option: 'DP / Camera op', defaultOn: false, sort: (r) => (r.source.dp ?? '').toLowerCase(), render: (r) => r.source.dp ?? '—' },
+  { key: 'interviewer', label: 'Interviewer', option: 'Interviewer', defaultOn: false, sort: (r) => (r.source.interviewer ?? '').toLowerCase(), render: (r) => r.source.interviewer ?? '—' },
   {
     key: 'transcript',
     label: 'Transcript',
@@ -174,7 +184,7 @@ export function SourcesPanel() {
   const sources = useStore((s) => s.sources)
   const selected = useStore((s) => s.selectedSourceId)
   const selectedAngle = useStore((s) => s.sourceAngle[s.selectedSourceId])
-  const { selectSource, openSource, removeSource, setSourcesOpen, setSourceAngle, syncSources } = useStore.getState()
+  const { selectSource, openSource, removeSource, setSourcesOpen, setSourceAngle, syncSources, openSyncEditor } = useStore.getState()
   const [query, setQuery] = useState('')
   const [dragging, setDragging] = useState(false)
   const [sort, setSort] = useState<{ key: ColKey; dir: 1 | -1 } | null>(null)
@@ -229,7 +239,7 @@ export function SourcesPanel() {
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const hit = (s: Source, a: Angle) => [s.title, a.camera, a.shotType, a.filename].some((v) => v?.toLowerCase().includes(q))
+    const hit = (s: Source, a: Angle) => [s.title, a.camera, a.shotType, a.filename, s.scene, s.take, s.director, s.dp, s.interviewer].some((v) => v?.toLowerCase().includes(q))
     let list: Row[] = []
     for (const source of sources) {
       const angles = angleList(source)
@@ -400,6 +410,7 @@ export function SourcesPanel() {
           active={selectMode}
           onClick={() => (selectMode ? leaveSelect() : setSelectMode(true))}
         />
+        <ToolButton icon="multicam" label="Sync editor — line up cameras, audio and transcripts" short="Sync" onClick={() => openSyncEditor()} />
         <span data-options-btn>
           <ToolButton icon="options" label="Table options — columns and view" short="Options" onClick={() => setOptionsOpen((o) => !o)} active={optionsOpen} />
         </span>

@@ -133,4 +133,6 @@ export function parseTranscript(filename: string, text: string): Pick<Source, 'w
 }
 
 export const TRANSCRIPT_EXT = /\.(srt|vtt|json)$/i
-export const MEDIA_EXT = /\.(mp4|m4v|mov|webm|mkv|mp3|m4a|wav|ogg|aac)$/i
+export const MEDIA_EXT = /\.(mp4|m4v|mov|webm|mkv|mp3|m4a|wav|ogg|aac|flac)$/i
+
+export const AUDIO_EXT = /\.(mp3|m4a|wav|ogg|aac|flac)$/i

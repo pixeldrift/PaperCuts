@@ -2274,3 +2274,456 @@ body {
     font-size: 16px; /* stops iOS zooming into fields */
   }
 }
+
+/* options box can scroll now that there are more columns */
+.options-pop {
+  max-height: calc(100% - 130px);
+  overflow-y: auto;
+}
+.angle-card.slate {
+  margin-top: 12px;
+}
+
+/* ═════════ Sync editor: multicam grid + stacked timeline ═════════ */
+.sync-scrim {
+  padding: 10px;
+  z-index: 110;
+}
+.sync {
+  width: min(1500px, 100%);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1.5px solid var(--accent-line);
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+}
+.sync-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--k-source) 12%, var(--panel-3));
+  border-top: 3px solid var(--k-source);
+  border-bottom: 1px solid var(--line);
+}
+.sync-head h2 {
+  font-size: 17px;
+  font-weight: 600;
+}
+.sync-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.sync-grid {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+  background: #0c0c10;
+  max-height: 34vh;
+  overflow-y: auto;
+}
+.sync-grid[data-count='1'] {
+  grid-template-columns: minmax(190px, 420px);
+  justify-content: center;
+}
+.sync-tile {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border: 2px solid #26262e;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.sync-tile[data-selected] {
+  border-color: var(--c);
+}
+.sync-tile video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.sync-tile.audio {
+  aspect-ratio: auto;
+  min-height: 70px;
+}
+.tile-sim {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 2px;
+  background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--c) 28%, transparent), transparent 65%);
+}
+.tile-sim b {
+  font-size: 26px;
+}
+.tile-sim span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.tile-label,
+.tile-time {
+  position: absolute;
+  bottom: 6px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.62);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.tile-label {
+  left: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tile-label i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.tile-time {
+  right: 6px;
+  color: var(--muted);
+}
+.tile-spk,
+.lab-spk {
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  padding: 3px 5px;
+}
+.tile-spk {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.tile-spk[data-on],
+.lab-spk[data-on] {
+  border-color: var(--accent-hi);
+}
+.sync-transport {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: var(--panel-3);
+  border-block: 1px solid var(--line);
+}
+.timecode.wide {
+  min-width: 64px;
+  font-size: 15px;
+  color: var(--text);
+  text-align: left;
+  margin-left: 6px;
+}
+.sync-hint {
+  flex: 1;
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.sync-transport .zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.sync-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--panel);
+}
+.sync-inner {
+  position: relative;
+  min-width: 100%;
+}
+.sync-row {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  min-height: var(--row-h, 76px);
+}
+.sync-row[data-selected] .sync-label {
+  background: color-mix(in srgb, var(--accent) 14%, var(--panel-3));
+}
+.sync-label {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  flex: none;
+  width: 232px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: var(--panel-3);
+  border-right: 1px solid var(--line);
+  font-size: 12.5px;
+}
+.sync-lane {
+  position: relative;
+  flex: none;
+}
+.ruler-row {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  min-height: 28px;
+  background: var(--panel-3);
+  cursor: pointer;
+  touch-action: none;
+}
+.ruler-row .sync-label.sync-corner {
+  min-height: 28px;
+  justify-content: center;
+  color: var(--muted);
+  z-index: 9;
+}
+.sync-lane.ruler {
+  height: 28px;
+  background-color: var(--panel-3);
+  background-image: linear-gradient(to right, var(--tick) 1px, transparent 1px), linear-gradient(to right, var(--tick-major) 1px, transparent 1px);
+  background-repeat: repeat-x;
+}
+.sync-section {
+  position: sticky;
+  left: 0;
+  padding: 5px 12px;
+  background: #15161b;
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  width: max-content;
+  min-width: 100%;
+}
+.sync-section small {
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-weight: 400;
+}
+.lab-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.lab-name {
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lab-file {
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lab-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+.lab-btns .fbtn {
+  height: 24px;
+  font-size: 11.5px;
+  padding: 0 8px;
+}
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.radio input {
+  accent-color: var(--accent);
+}
+.off-ctl {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.off-ctl button {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 13px;
+  line-height: 1;
+}
+.off-ctl button:hover {
+  border-color: var(--accent-line);
+}
+.off-ctl input {
+  width: 64px;
+  height: 22px;
+  padding: 0 5px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  text-align: right;
+}
+.off-ctl span {
+  color: var(--muted);
+  font-size: 11px;
+  margin-right: 3px;
+}
+.sync-block {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  min-width: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--c) 16%, var(--panel-2));
+  border: 1.5px solid var(--c);
+  border-radius: 7px;
+  cursor: grab;
+  touch-action: none;
+}
+.sync-block:active {
+  cursor: grabbing;
+}
+.block-title {
+  position: absolute;
+  top: 2px;
+  left: 6px;
+  right: 6px;
+  z-index: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+}
+.wave {
+  position: absolute;
+  left: 0;
+  bottom: 4px;
+  height: 38px;
+  pointer-events: none;
+}
+.wave-sim {
+  position: absolute;
+  right: 6px;
+  bottom: 3px;
+  font-size: 9.5px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.tr-row {
+  min-height: 52px;
+}
+.sync-block.tr {
+  cursor: default;
+  opacity: 0.5;
+  background: color-mix(in srgb, var(--c) 10%, var(--panel-2));
+  border-style: dashed;
+}
+.sync-block.tr[data-used] {
+  opacity: 1;
+}
+.sync-block.tr .block-title {
+  top: 50%;
+  transform: translateY(-50%);
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--text);
+}
+.master-row {
+  min-height: 56px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--panel));
+}
+.sync-block.master {
+  cursor: default;
+  background: color-mix(in srgb, var(--c) 30%, var(--panel-2));
+  border-style: solid;
+}
+.sync-block.master .block-title {
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+}
+.lane-empty {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.sync-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent-hi);
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+@media (max-width: 720px) {
+  .sync-scrim {
+    padding: 0;
+  }
+  .sync {
+    border-radius: 0;
+  }
+  .sync-label {
+    width: 232px;
+  }
+  .sync-hint {
+    display: none;
+  }
+  .sync-grid {
+    grid-template-columns: repeat(2, 1fr);
+    max-height: 30vh;
+  }
+}
+
+/* security-camera style: compact tiles so the timeline gets the room */
+.sync-grid {
+  grid-template-columns: repeat(auto-fill, minmax(190px, 250px));
+  justify-content: center;
+  max-height: 26vh;
+}
+.sync-grid[data-count='1'] {
+  grid-template-columns: minmax(190px, 300px);
+}
+@media (max-width: 720px) {
+  .sync-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 24vh;
+  }
+}

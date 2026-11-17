@@ -1,9 +1,11 @@
 import { create } from 'zustand'
 import { PRIMARY_ANGLE, type Angle, type Clip, type Note, type Pane, type Source, type Tab, type Word } from './types'
 import { SAMPLE_SOURCES } from './data/sample'
-import { angleList, getAngle, nextCamera } from './lib/angles'
+import { angleList, getAngle, nextCamera, videoAngles } from './lib/angles'
+import { buildMaster, longestAngleId, normalizeOwn, shiftWords, timelineLength, transcriptSpan } from './lib/sync'
 import { deleteSource, kvGet, kvSet, mediaKey, moveMedia, saveSource } from './lib/db'
 import { sentenceRanges } from './lib/transcript'
+const sentenceRangesOf = sentenceRanges
 import { applyReplacement, findMatches, replaceWords, retext, tokenize, toggleBreakAfter } from './lib/textdiff'
 
 export const FPS = 30
@@ -134,6 +136,8 @@ interface State {
   past: Snapshot[]
   future: Snapshot[]
 
+  /** The Sync Editor (multicam grid + timeline), for this source id. */
+  syncEditorId: string | null
   /** Which angle the Source pane is previewing, per source (absent = primary). */
   sourceAngle: Record<string, string>
 
@@ -208,6 +212,14 @@ interface State {
   setSourceAngle: (sourceId: string, angleId: string) => void
   /** Choose which angle a clip in the edit uses. */
   setClipAngle: (clipId: string, angleId: string) => void
+  openSyncEditor: (sourceId?: string) => void
+  closeSyncEditor: () => void
+  /** Replace a source wholesale (used by the Sync Editor's Apply). */
+  replaceSource: (src: Source) => void
+  /** Apply the Sync Editor's result: replace the source and shift its clips if the timeline was rebased. */
+  applySync: (src: Source, delta: number) => void
+  /** Drop a clip's transcript (single-camera clips; multicam transcripts are managed in the Sync Editor). */
+  removeTranscript: (sourceId: string) => void
   /** Pick the selected clip's Nth angle (1 = primary) — the 1-9 shortcuts. */
   setAngleByNumber: (n: number) => void
   /** Edit a source's metadata (title, date, camera info, sync offsets…). */
@@ -287,6 +299,7 @@ export const useStore = create<State>((set, get) => {
     past: [],
     future: [],
 
+    syncEditorId: null,
     sourceAngle: {},
     mode: 'source',
     playing: false,
@@ -657,23 +670,50 @@ export const useStore = create<State>((set, get) => {
       const clip = s.clips.find((c) => c.id === s.selectedClipId)
       const src = clip && s.sources.find((x) => x.id === clip.sourceId)
       if (!clip || !src) return
-      const a = angleList(src)[n - 1]
-      if (!a) return get().toast(`This clip only has ${angleList(src).length} angle${angleList(src).length === 1 ? '' : 's'}`)
+      const cams = videoAngles(src)
+      const a = cams[n - 1]
+      if (!a) return get().toast(`This clip only has ${cams.length} camera angle${cams.length === 1 ? '' : 's'}`)
       get().setClipAngle(clip.id, a.id)
     },
     updateSource: (sourceId, update) =>
       set((s) => ({ sources: s.sources.map((x) => (x.id === sourceId ? update(x) : x)) })),
 
+    openSyncEditor: (sourceId) => {
+      const id = sourceId ?? get().selectedSourceId
+      if (get().sources.some((x) => x.id === id)) set({ syncEditorId: id, playing: false })
+    },
+    closeSyncEditor: () => set({ syncEditorId: null }),
+    replaceSource: (src) => set((s) => ({ sources: s.sources.map((x) => (x.id === src.id ? src : x)), sourceSel: null, editingWord: null })),
+    applySync: (src, delta) => {
+      set((s) => ({
+        sources: s.sources.map((x) => (x.id === src.id ? src : x)),
+        // a camera that rolled earlier moved the start of the timeline: keep every clip on the same footage
+        clips: delta ? s.clips.map((c) => (c.sourceId === src.id ? { ...c, inMs: c.inMs + delta, outMs: c.outMs + delta } : c)) : s.clips,
+        past: [],
+        future: [],
+        sourceSel: null,
+        editingWord: null,
+        syncEditorId: null,
+      }))
+    },
+    removeTranscript: (sourceId) => {
+      const src = get().sources.find((x) => x.id === sourceId)
+      if (!src || !src.words.length) return
+      if (!window.confirm(`Remove the transcript from “${src.title}”? Clips already in your edit keep their time ranges.`)) return
+      get().replaceSource({ ...src, words: [], sentences: [], transcriptFormat: undefined, primaryTranscript: undefined })
+      get().toast('Transcript removed')
+    },
+
     syncSources: (ids) => {
       const s = get()
-      const picked = s.sources.filter((x) => ids.includes(x.id))
+      const picked = s.sources.filter((x) => ids.includes(x.id)).map(normalizeOwn)
       if (picked.length < 2) return get().toast('Select two or more clips to sync')
-      // the shared transcript comes from the source that has the most text
-      const primary = picked.reduce((best, x) => (x.words.length > best.words.length ? x : best))
+      // the longest transcript becomes the base clip and, by default, the shared (master) transcript
+      const primary = picked.reduce((best, x) => (transcriptSpan(x) > transcriptSpan(best) || (transcriptSpan(x) === transcriptSpan(best) && x.words.length > best.words.length) ? x : best))
       const others = picked.filter((x) => x !== primary)
-      if (!window.confirm(`Sync ${picked.length} clips into one multicam clip?\n\nThey will share the transcript from “${primary.title}”. The other transcripts are discarded.`)) return
+      if (!window.confirm(`Sync ${picked.length} clips into one multicam clip?\n\nEvery transcript is kept. “${primary.title}” has the longest one, so it is used as the shared transcript — you can change that in the Sync Editor.`)) return
 
-      let merged: Source = primary
+      let merged: Source = { ...primary, mainDuration: primary.mainDuration ?? primary.duration }
       const remap = new Map<string, string>() // `${otherId}|${oldAngleId}` → new angle id
       const mediaMoves: [string, string][] = []
       let n = 0
@@ -689,12 +729,20 @@ export const useStore = create<State>((set, get) => {
             recordedAt: a.recordedAt,
             mediaUrl: a.mediaUrl,
             offsetMs: a.offsetMs,
+            durationMs: a.durationMs ?? o.duration,
+            audioOnly: a.audioOnly,
+            transcript: a.transcript, // each camera keeps its own transcript
           }
           merged = { ...merged, extraAngles: [...(merged.extraAngles ?? []), angle] }
           remap.set(`${o.id}|${a.id}`, id)
           mediaMoves.push([mediaKey(o.id, a.id), mediaKey(primary.id, id)])
         }
       }
+      merged = { ...merged, masterAngle: longestAngleId(merged), transcriptMode: 'single' }
+      const built = buildMaster(merged)
+      if (built) merged = { ...merged, words: built.words, sentences: built.sentences, transcriptFormat: built.format ?? merged.transcriptFormat }
+      merged = { ...merged, duration: timelineLength(merged) }
+
       const otherIds = new Set(others.map((o) => o.id))
       const sources = s.sources.filter((x) => !otherIds.has(x.id)).map((x) => (x.id === primary.id ? merged : x))
       const clips = s.clips.map((c) =>
@@ -719,7 +767,7 @@ export const useStore = create<State>((set, get) => {
           get().toast('Couldn’t update storage')
         }
       })()
-      get().toast(`Synced ${picked.length} clips — ${angleList(merged).length} angles, one transcript`)
+      get().toast(`Synced ${picked.length} clips — all transcripts kept; “${primary.title}” is the shared one`)
     },
 
     unsyncAngle: (sourceId, angleId) => {
@@ -728,26 +776,56 @@ export const useStore = create<State>((set, get) => {
       if (!src?.extraAngles?.length) return
       const leaving = angleId === 'all' ? src.extraAngles : src.extraAngles.filter((a) => a.id === angleId)
       if (!leaving.length) return
-      const made: Source[] = leaving.map((a, i) => ({
-        id: `imp-${Date.now().toString(36)}-u${i}`,
-        title: `${src.title} – ${a.camera}`,
-        date: src.date,
-        duration: src.duration,
-        words: src.words,
-        sentences: src.sentences,
-        transcriptFormat: src.transcriptFormat,
-        mediaUrl: a.mediaUrl,
-        camera: a.camera,
-        shotType: a.shotType,
-        filename: a.filename,
-        recordedAt: a.recordedAt,
-      }))
+
+      // a split-out camera keeps its OWN transcript; if it never had one it gets a copy of the shared one
+      const made: Source[] = leaving.map((a, i) => {
+        const own = a.transcript
+        const words = own ? own.words : shiftWords(src.words, -a.offsetMs)
+        return {
+          id: `imp-${Date.now().toString(36)}-u${i}`,
+          title: `${src.title} – ${a.camera}`,
+          date: src.date,
+          duration: a.durationMs ?? src.duration,
+          words,
+          sentences: sentenceRangesOf(words),
+          transcriptFormat: own ? own.format : src.transcriptFormat,
+          mediaUrl: a.mediaUrl,
+          camera: a.camera,
+          shotType: a.shotType,
+          filename: a.filename,
+          recordedAt: a.recordedAt,
+          scene: src.scene,
+          take: src.take,
+          director: src.director,
+          dp: src.dp,
+          interviewer: src.interviewer,
+        }
+      })
       const gone = new Set(leaving.map((a) => a.id))
       const idFor = new Map(leaving.map((a, i) => [a.id, made[i].id]))
       const remaining = src.extraAngles.filter((a) => !gone.has(a.id))
-      const updated: Source = { ...src, extraAngles: remaining.length ? remaining : undefined }
+      let updated: Source = { ...src, extraAngles: remaining.length ? remaining : undefined }
+      if (!remaining.length) {
+        // back to a single camera: it reverts to its own transcript (or keeps the shared one)
+        const mine = src.primaryTranscript
+        updated = {
+          ...updated,
+          words: mine ? mine.words : src.words,
+          sentences: mine ? sentenceRangesOf(mine.words) : src.sentences,
+          transcriptFormat: mine ? mine.format : src.transcriptFormat,
+          duration: src.mainDuration ?? src.duration,
+          primaryTranscript: undefined,
+          mainDuration: undefined,
+          masterAngle: undefined,
+          transcriptMode: undefined,
+        }
+      } else if (src.masterAngle && gone.has(src.masterAngle)) {
+        updated = { ...updated, masterAngle: longestAngleId(updated) }
+        const built = buildMaster(updated)
+        if (built) updated = { ...updated, words: built.words, sentences: built.sentences }
+      }
       const at = s.sources.findIndex((x) => x.id === sourceId)
-      const sources = [...s.sources.slice(0, at), updated, ...made, ...s.sources.slice(at + 1)].map((x) => (x.id === sourceId ? updated : x))
+      const sources = [...s.sources.slice(0, at), updated, ...made, ...s.sources.slice(at + 1)]
       const clips = s.clips.map((c) =>
         c.sourceId === sourceId && c.angleId && gone.has(c.angleId) ? { ...c, sourceId: idFor.get(c.angleId)!, angleId: undefined } : c,
       )
@@ -762,7 +840,7 @@ export const useStore = create<State>((set, get) => {
           get().toast('Couldn’t update storage')
         }
       })()
-      get().toast(`Split ${leaving.length} angle${leaving.length > 1 ? 's' : ''} out into separate clips`)
+      get().toast(`Split ${leaving.length} angle${leaving.length > 1 ? 's' : ''} out — each keeps its own transcript`)
     },
   }
 })

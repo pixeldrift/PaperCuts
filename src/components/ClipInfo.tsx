@@ -24,9 +24,16 @@ interface AngleDraft {
  * clip's data in the Sources list. `field` says which column was tapped, to focus it.
  */
 export function ClipInfo({ source, field, onClose }: { source: Source; field?: string; onClose: () => void }) {
-  const { updateSource, unsyncAngle } = useStore.getState()
+  const { updateSource, unsyncAngle, openSyncEditor, removeTranscript } = useStore.getState()
   const [title, setTitle] = useState(source.title)
   const [date, setDate] = useState(source.date)
+  const [slate, setSlate] = useState({
+    scene: source.scene ?? '',
+    take: source.take ?? '',
+    director: source.director ?? '',
+    dp: source.dp ?? '',
+    interviewer: source.interviewer ?? '',
+  })
   const [angles, setAngles] = useState<AngleDraft[]>(() =>
     angleList(source).map((a) => ({
       id: a.id,
@@ -52,7 +59,16 @@ export function ClipInfo({ source, field, onClose }: { source: Source; field?: s
 
   const save = () => {
     updateSource(source.id, (s) => {
-      let next: Source = { ...s, title: title.trim() || s.title, date: date.trim() || s.date }
+      let next: Source = {
+        ...s,
+        title: title.trim() || s.title,
+        date: date.trim() || s.date,
+        scene: slate.scene.trim() || undefined,
+        take: slate.take.trim() || undefined,
+        director: slate.director.trim() || undefined,
+        dp: slate.dp.trim() || undefined,
+        interviewer: slate.interviewer.trim() || undefined,
+      }
       for (const a of angles) {
         next = patchAngle(next, a.id, {
           camera: a.camera.trim() || 'A',
@@ -100,10 +116,35 @@ export function ClipInfo({ source, field, onClose }: { source: Source; field?: s
               {input('date', date, setDate)}
             </label>
           </div>
+          <fieldset className="angle-card slate">
+            <legend>Slate</legend>
+            <div className="form-grid">
+              <label>
+                Scene
+                {input('scene', slate.scene, (v) => setSlate((x) => ({ ...x, scene: v })))}
+              </label>
+              <label>
+                Take
+                {input('take', slate.take, (v) => setSlate((x) => ({ ...x, take: v })))}
+              </label>
+              <label>
+                Director
+                {input('director', slate.director, (v) => setSlate((x) => ({ ...x, director: v })))}
+              </label>
+              <label>
+                DP / Camera op
+                {input('dp', slate.dp, (v) => setSlate((x) => ({ ...x, dp: v })))}
+              </label>
+              <label className="wide">
+                Interviewer
+                {input('interviewer', slate.interviewer, (v) => setSlate((x) => ({ ...x, interviewer: v })))}
+              </label>
+            </div>
+          </fieldset>
           <p className="modal-note">
             {source.words.length ? `${source.words.length.toLocaleString()} words` : 'No transcript'}
             {source.transcriptFormat ? ` · ${source.transcriptFormat.toUpperCase()}` : ''} · shared by{' '}
-            {angles.length === 1 ? 'this clip' : `all ${angles.length} angles`}
+            {angles.length === 1 ? 'this clip' : `all ${angles.length} angles (see the Sync editor for each camera’s own)`}
           </p>
 
           {angles.map((a, i) => (
@@ -157,9 +198,17 @@ export function ClipInfo({ source, field, onClose }: { source: Source; field?: s
         </div>
 
         <footer className="modal-foot">
+          <button className="fbtn" onClick={() => (openSyncEditor(source.id), onClose())} title="Line up cameras, audio and transcripts on a timeline">
+            <Icon name="multicam" size={14} /> Sync editor
+          </button>
           {angles.length > 1 && (
             <button className="fbtn danger" onClick={() => (unsyncAngle(source.id, 'all'), onClose())}>
-              <Icon name="multicam" size={14} /> Unsync all
+              Unsync all
+            </button>
+          )}
+          {angles.length === 1 && source.words.length > 0 && (
+            <button className="fbtn danger" onClick={() => (removeTranscript(source.id), onClose())}>
+              Remove transcript
             </button>
           )}
           <span className="spacer" />

@@ -3,6 +3,7 @@ import { initPersistence } from './lib/persist'
 import { IMPORT_EVENT, openImportPicker, runImport } from './lib/runImport'
 import { EditPane } from './components/EditPane'
 import { SourcePane } from './components/SourcePane'
+import { SyncEditor } from './components/SyncEditor'
 import { SourcesPanel } from './components/SourcesPanel'
 import { Timeline } from './components/Timeline'
 import { ToolButton } from './components/Toolbar'
@@ -205,6 +206,8 @@ export function App() {
           e.target.value = ''
         }}
       />
+
+      <SyncEditor />
 
       <div className="toast" data-show={!!toastMsg} role="status">
         {toastMsg}

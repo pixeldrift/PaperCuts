@@ -29,6 +29,28 @@ export interface Source {
    * primary angle.
    */
   extraAngles?: Angle[]
+
+  // — Slate (traditional production metadata)
+  scene?: string
+  take?: string
+  director?: string
+  /** DP / camera operator. */
+  dp?: string
+  interviewer?: string
+
+  // — Multicam bookkeeping (only meaningful once a clip has several angles)
+  /** The primary angle's own transcript, in that camera's own media time. */
+  primaryTranscript?: OwnTranscript
+  /** Length of the primary angle's footage (`duration` becomes the length of the shared timeline). */
+  mainDuration?: number
+  /** When the primary angle's footage starts on the shared timeline (0 unless another camera rolled earlier). */
+  mainOffset?: number
+  /** Which angle's transcript has priority when building the shared transcript. Absent = primary. */
+  masterAngle?: string
+  /** 'single' = only the master angle's transcript; 'combined' = fill the whole timeline using every transcript. */
+  transcriptMode?: 'single' | 'combined'
+
+  /** The shared transcript (the "master"), on the shared timeline. Everything in the app edits from this. */
   words: Word[]
   /** [firstWordIndex, lastWordIndex] per sentence. */
   sentences: [number, number][]
@@ -44,6 +66,18 @@ export interface Angle {
   mediaUrl?: string
   /** How much later this footage starts than the shared timeline (media time = timeline time − offset). */
   offsetMs: number
+  /** Length of this footage. */
+  durationMs?: number
+  /** An audio-only recording (e.g. an external recorder) rather than a camera. */
+  audioOnly?: boolean
+  /** This camera's own transcript, in its own media time (shifted by `offsetMs` onto the shared timeline). */
+  transcript?: OwnTranscript
+}
+
+/** A transcript that belongs to one angle's footage. */
+export interface OwnTranscript {
+  words: Word[]
+  format?: Source['transcriptFormat']
 }
 
 /** Id of a source's primary angle (the one its transcript was timed against). */
