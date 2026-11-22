@@ -1,6 +1,6 @@
 import { mediaKey } from './db'
 import { PRIMARY_ANGLE, type Angle, type Source } from '../types'
-import { MEDIA_EXT, TRANSCRIPT_EXT, parseTranscript } from './transcript'
+import { AUDIO_EXT, MEDIA_EXT, TRANSCRIPT_EXT, parseTranscript } from './transcript'
 
 const base = (name: string) => name.replace(/\.[^.]+$/, '')
 const norm = (name: string) => base(name).toLowerCase().replace(/[^a-z0-9]+/g, '')
@@ -33,7 +33,7 @@ const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { n
  */
 export async function importFiles(files: File[]): Promise<ImportResult> {
   const transcripts = files.filter((f) => TRANSCRIPT_EXT.test(f.name))
-  const media = files.filter((f) => MEDIA_EXT.test(f.name)).sort(byName)
+  const media = files.filter((f) => MEDIA_EXT.test(f.name)).sort((a, b) => Number(AUDIO_EXT.test(a.name)) - Number(AUDIO_EXT.test(b.name)) || byName(a, b))
   const warnings: string[] = []
   const ignored = files.length - transcripts.length - media.length
   if (ignored) warnings.push(`${ignored} unsupported file${ignored > 1 ? 's' : ''} skipped`)
@@ -73,7 +73,18 @@ export async function importFiles(files: File[]): Promise<ImportResult> {
     for (const [i, m] of ms.entries()) {
       const url = URL.createObjectURL(m)
       mediaMs = Math.max(mediaMs, await mediaDuration(url))
-      const angle: Angle = { id: i === 0 ? PRIMARY_ANGLE : `${id}-a${i}`, camera: CAMERAS[i] ?? `Cam ${i + 1}`, filename: m.name, recordedAt: stamp(m), mediaUrl: url, offsetMs: 0 }
+      const audioOnly = AUDIO_EXT.test(m.name)
+      const nth = (flag: boolean) => ms.slice(0, i).filter((x) => AUDIO_EXT.test(x.name) === flag).length // earlier files of the same kind
+      const angle: Angle = {
+        id: i === 0 ? PRIMARY_ANGLE : `${id}-a${i}`,
+        camera: audioOnly ? (nth(true) ? `Audio ${nth(true) + 1}` : 'Audio') : (CAMERAS[nth(false)] ?? `Cam ${nth(false) + 1}`),
+        filename: m.name,
+        recordedAt: stamp(m),
+        mediaUrl: url,
+        offsetMs: 0,
+        durationMs: await mediaDuration(url),
+        ...(audioOnly && i > 0 ? { audioOnly: true } : {}),
+      }
       angles.push(angle)
       stored[mediaKey(id, angle.id)] = m
     }

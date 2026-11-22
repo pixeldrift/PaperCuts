@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon, Transport } from '../icons'
 import { angleList, nextCamera, patchAngle } from '../lib/angles'
+import { alignByAudio, loadEnvelope } from '../lib/audiosync'
 import { angleColor } from '../lib/colors'
 import { mediaDuration } from '../lib/importSources'
 import { mediaKey, saveMedia } from '../lib/db'
@@ -113,6 +114,8 @@ function Editor({ source }: { source: Source }) {
   const scroller = useRef<HTMLDivElement>(null)
   const [view, setView] = useState({ left: 0, width: 1600 })
   const [hover, setHover] = useState<{ k: string; t: number } | null>(null)
+  /** Which camera's audio is being analysed right now ('all' = every camera). */
+  const [listening, setListening] = useState<string | null>(null)
   /** One lane per camera: its words are drawn over the waveform instead of in a lane of their own. */
   const [overlay, setOverlay] = useState(() => {
     try {
@@ -173,6 +176,57 @@ function Editor({ source }: { source: Source }) {
     setDraft((d) => Object.entries(found).reduce((acc, [id, off]) => patchAngle(acc, id, { offsetMs: off }), d))
     toast(`Lined up ${n} camera${n > 1 ? 's' : ''} by their words`)
   }
+
+  // ── line cameras up by their sound (cross-correlating loudness envelopes)
+  /** The camera everything is measured against: the primary transcript's camera if it has footage, else the first one that does. */
+  const audioRef = (): Angle | undefined => {
+    const m = angles.find((a) => a.id === (draft.masterAngle ?? PRIMARY_ANGLE))
+    return m?.mediaUrl ? m : angles.find((a) => a.mediaUrl)
+  }
+  const matchAudio = async (ref: Angle, a: Angle) => {
+    const [re, oe] = await Promise.all([loadEnvelope(ref.mediaUrl!), loadEnvelope(a.mediaUrl!)])
+    if (!re || !oe) return { error: `Couldn’t read the audio of ${!re ? ref.camera : a.camera}` }
+    const r = alignByAudio(re, oe)
+    if (!r || !r.confident) return { error: `No clear audio match for ${a.camera} — the cameras may not share sound, or barely overlap` }
+    return { offsetMs: Math.round(ref.offsetMs + r.offsetMs), strong: r.score >= 0.4 }
+  }
+  const alignAudio = async (aid: string) => {
+    const ref = audioRef()
+    const a = angles.find((x) => x.id === aid)
+    if (!ref || !a?.mediaUrl || ref.id === a.id) return
+    setListening(aid)
+    toast(`Listening to ${a.camera}…`)
+    try {
+      const r = await matchAudio(ref, a)
+      if ('error' in r) return toast(r.error!)
+      setAngle(aid, { offsetMs: r.offsetMs })
+      toast(`Lined up ${a.camera} by audio (${r.strong ? 'strong' : 'good'} match)`)
+    } finally {
+      setListening(null)
+    }
+  }
+  const alignAllAudio = async () => {
+    const ref = audioRef()
+    if (!ref) return
+    setListening('all')
+    toast('Listening to every camera…')
+    try {
+      const found: Record<string, number> = {}
+      let missed = 0
+      for (const a of angles) {
+        if (!a.mediaUrl || a.id === ref.id) continue
+        const r = await matchAudio(ref, a)
+        if ('error' in r) missed++
+        else found[a.id] = r.offsetMs
+      }
+      const n = Object.keys(found).length
+      if (n) setDraft((d) => Object.entries(found).reduce((acc, [id, off]) => patchAngle(acc, id, { offsetMs: off }), d))
+      toast(n ? `Lined up ${n} camera${n > 1 ? 's' : ''} by audio${missed ? ` (${missed} had no clear match)` : ''}` : 'No camera had a clear audio match')
+    } finally {
+      setListening(null)
+    }
+  }
+  const aref = audioRef()
 
   // ── words drawn on the time axis (only those on screen); same word in two tracks lines up
   const wordRun = (aid: string, relTo = 0) => {
@@ -415,6 +469,11 @@ function Editor({ source }: { source: Source }) {
                 Auto-align by words
               </button>
             )}
+            {angles.filter((a) => a.mediaUrl).length > 1 && (
+              <button className="fbtn" disabled={!!listening} onClick={() => void alignAllAudio()} title="Slide every camera so its sound lines up with the reference camera's — works without any transcript">
+                {listening === 'all' ? 'Listening…' : 'Auto-align by audio'}
+              </button>
+            )}
             <button className="fbtn" onClick={() => addInput.current?.click()} title="Add another camera or an external audio recording">
               + Camera / audio
             </button>
@@ -560,6 +619,13 @@ function Editor({ source }: { source: Source }) {
                       )}
                     </div>
                     {offsetControls(a)}
+                    {a.mediaUrl && aref && a.id !== aref.id && (
+                      <div className="lab-btns">
+                        <button className="fbtn" disabled={!!listening} onClick={() => void alignAudio(a.id)} title={`Slide ${a.camera} so its sound lines up with ${aref.camera}'s`}>
+                          {listening === a.id ? 'Listening…' : 'Align by audio'}
+                        </button>
+                      </div>
+                    )}
                     <small className="lab-file">{a.filename ?? (i === 0 ? 'primary' : '')}</small>
                     {overlay && !a.audioOnly && trControls(a)}
                   </div>
